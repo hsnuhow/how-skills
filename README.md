@@ -16,8 +16,8 @@ holding my personal skills as installable plugins, so they work on any machine.
 ## Install on a new machine
 
 ```shell
-# 1. Add this marketplace once (replace with your GitHub owner/repo)
-/plugin marketplace add <your-github-username>/claude-skills-marketplace
+# 1. Add this marketplace once
+/plugin marketplace add hsnuhow/how-skills
 
 # 2. Install the plugins you want
 /plugin install skill-tools@how-skills
