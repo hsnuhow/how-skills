@@ -1,0 +1,9 @@
+{
+  "name": "ponytail",
+  "description": "Commands-only build of ponytail: lazy-senior-dev / anti-over-engineering review commands (/ponytail-review, /ponytail-audit, etc.) plus an explicit-invoke-only 'ponytail' mode. Ships NO lifecycle hooks, so it never auto-activates.",
+  "version": "1.0.0",
+  "author": {
+    "name": "how"
+  },
+  "license": "MIT"
+}

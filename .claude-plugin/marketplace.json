@@ -1,0 +1,20 @@
+{
+  "name": "how-skills",
+  "owner": {
+    "name": "how"
+  },
+  "plugins": [
+    {
+      "name": "skill-tools",
+      "source": "./plugins/skill-tools",
+      "description": "Skill management commands: list all skills (中文), show enable scope, and recommend skills for the current project.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "ponytail",
+      "source": "./plugins/ponytail",
+      "description": "Commands-only build of ponytail (lazy senior dev / anti-over-engineering). No auto-firing hooks; the main mode is explicit-invoke only.",
+      "version": "1.0.0"
+    }
+  ]
+}
