@@ -1,0 +1,7 @@
+{
+  "name": "media-tools",
+  "description": "Client-ready media prep: convert a video (time range) to an animated GIF, convert PowerPoint to a high-fidelity PDF (fonts embedded, page-count verified), and compress a PDF to email size. Built for preparing decks and clips to send to clients.",
+  "version": "1.0.0",
+  "author": { "name": "how" },
+  "license": "MIT"
+}

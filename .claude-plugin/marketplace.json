@@ -15,6 +15,12 @@
       "source": "./plugins/ponytail",
       "description": "Commands-only build of ponytail (lazy senior dev / anti-over-engineering). No auto-firing hooks; the main mode is explicit-invoke only.",
       "version": "1.0.0"
+    },
+    {
+      "name": "media-tools",
+      "source": "./plugins/media-tools",
+      "description": "Client-ready media prep: video->GIF, PowerPoint->high-fidelity PDF (LibreOffice), and PDF compression (Ghostscript) for emailing. Requires ffmpeg, ghostscript, libreoffice.",
+      "version": "1.0.0"
     }
   ]
 }
