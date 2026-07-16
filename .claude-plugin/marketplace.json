@@ -21,6 +21,12 @@
       "source": "./plugins/media-tools",
       "description": "Client-ready media prep: video->GIF, PowerPoint->high-fidelity PDF (LibreOffice), and PDF compression (Ghostscript) for emailing. Requires ffmpeg, ghostscript, libreoffice.",
       "version": "1.0.0"
+    },
+    {
+      "name": "taiwan-biz-research",
+      "source": "./plugins/taiwan-biz-research",
+      "description": "Taiwan economic and market data for business-case research: NDC business-cycle light with components (1984-), household income/spending by county and category mix (1976-), and bottom-up market sizing — all from free government open data.",
+      "version": "0.1.0"
     }
   ]
 }
