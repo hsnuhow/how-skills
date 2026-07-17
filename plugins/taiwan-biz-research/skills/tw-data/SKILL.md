@@ -1,6 +1,6 @@
 ---
 name: tw-data
-description: Pull real Taiwan economic and market data for business-case research — the NDC business-cycle light (景氣對策信號/景氣燈號) and its driving components, leading/coincident indicators, and household income, spending and consumption mix by county and income quintile. Use this to answer "how is Taiwan's economy doing right now", "is the cycle turning", "how big is category X in Taiwan", "what do households in 新竹 spend", "size this market bottom-up", or whenever a Taiwan market-entry, competitor, investment or trend question needs numbers behind it rather than assertions. Also use it when someone asks where Taiwanese economic data comes from or whether a source is usable — this skill knows which endpoints are alive, which are traps, and why.
+description: Pull real Taiwan economic and market data for business-case research — the NDC business-cycle light (景氣對策信號/景氣燈號) and its driving components, leading/coincident indicators, and household income, spending and consumption mix by county and income quintile. Use this to answer "how is Taiwan's economy doing right now", "is the cycle turning", "how big is category X in Taiwan" (at the household survey's 10-category grain — no finer), "what do households in 新竹 spend", "size this market bottom-up", or whenever a Taiwan market-entry, competitor, investment or trend question needs numbers behind it rather than assertions. Coverage is strongest for consumer, manufacturing and export questions; pure services industries (media, education) are invisible to the fast monthly series. Also use it when someone asks where Taiwanese economic data comes from or whether a source is usable — this skill knows which endpoints are alive, which are traps, and why.
 ---
 
 # Taiwan economic data
@@ -117,6 +117,34 @@ python3 scripts/dgbas_macro.py --gdp --items    # what else is in that file
 期中人口; the CPI file breaks down to 食物類 → 穀類 → 米類. Use `--items` to find
 a series rather than guessing its name.
 
+### 營業稅銷售額按行業別 — the SME-inclusive read (`scripts/mof_industry.py`)
+
+The one series that sees what TWSE cannot: every VAT-registered business,
+including the SMEs and services that make up most of Taiwan's economy. Monthly,
+by 22 counties, down to 3-digit 稅務行業小類, 2018→.
+
+```bash
+python3 scripts/mof_industry.py --list 出版          # find the industry name
+python3 scripts/mof_industry.py --industry 581       # national sales by period
+python3 scripts/mof_industry.py --industry 581 --history 5
+python3 scripts/mof_industry.py --industry 581 --county
+```
+
+Digit keywords match the industry code exactly; text matches names as a
+substring — and matches are never summed, because the file holds aggregates and
+their children in one column (58 contains 581 and 582), the same trap as MOEA
+sectors.
+
+**Use this when the four fast reads are blind** — media, education, professional
+services, any fragmented consumer category. A worked contrast: `--tam 休閒`
+gives a NT$5,400億 bucket, while `--industry 581` shows the entire news/magazine
+/book publishing industry is ~NT$460億/year — the grain warning made real.
+
+**Caveats it prints and you must keep**: 口徑 is self-reported 稅籍行業別;
+營業稅法第8條 exempts magazines' own-publication sales and ad revenue, so 58x
+publishing is structurally understated; VAT files bimonthly (odd months are
+tiny — use annual or cumulative rows).
+
 ### 外銷訂單、生產、零售 (`scripts/moea_orders.py`)
 
 外銷訂單 is the best leading indicator here — orders are booked before they are
@@ -177,11 +205,25 @@ listed-company revenue, export orders, and production/retail. **Check them
 against each other before putting a claim in a deck.** When they agree, the
 finding is solid; when they diverge, the divergence *is* the finding.
 
+**One shared blind spot: all four reads lean manufacturing / export / retail.**
+A pure services industry — media, education, professional services — is
+invisible in every fast series here: TWSE's 33 產業別 carry no 出版/媒體/文創,
+and MOEA production is manufacturing-only. Four thermometers can't measure a
+patient who isn't in the room; for those industries reach for `mof_industry.py`
+(營業稅 by industry — includes SMEs and services) instead of proxying with retail.
+
 The current picture is a worked example: 外銷訂單 電子 +61%, 上市月營收 +45%,
 製造業生產 +10%, 零售營業額 +3%, and 民生工業 production actually negative —
 while the cycle light sits at 紅 for six straight months. Four sources agreeing
 on a boom, and the same four showing it is an export/electronics boom that
 domestic demand is not sharing. Neither half of that is visible from one series.
+
+## Off-API but verified
+
+Advertising market size (DMA), willingness to pay (Reuters DNR), industry survey
+output (TAICCA), and the WIRED.tw precedent live outside open data but are
+verified with URLs, retrieval methods and dated snapshots in
+`references/external-sources.md`. Media and subscription cases need them.
 
 ## Not yet built
 
@@ -194,4 +236,9 @@ Verified working, wrapper not written — endpoints are in `references/endpoints
   fast-moving half.
 - **PCC 政府採購** — B2G demand, same-day via the community API.
 - **GCIS 公司登記** — entity resolution by 統編.
-- **TPEx** (上櫃, 225 endpoints) — mixes ROC and AD dates across endpoints.
+- **TPEx** (上櫃, 225 endpoints) — mixes ROC and AD dates across endpoints;
+  spec at `/openapi/swagger.json`, unknown paths 302 to an HTML homepage.
+- **推銷費用 per company** — the ad-market *demand* side. Not in any OpenAPI
+  summary (those carry 營業費用 total only); comes from MOPS inline-XBRL
+  statements, one GET per company-quarter, Big5. Endpoint + regex in
+  `references/endpoints.md`. Pairs with DMA (supply side) for advertising cases.

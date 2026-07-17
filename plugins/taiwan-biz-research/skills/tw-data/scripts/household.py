@@ -220,6 +220,7 @@ def cmd_tam(category, as_json=False):
         print(json.dumps({
             "category": cat, "share_pct": mix[cat],
             "spend_year": year, "mix_year": myear, "household_year": hyear,
+            "grain_warning": "粒度為家庭收支調查的 10 大類；若目標市場窄於整個類別，此數是上界的上界，只能當天花板，不能當 TAM",
             "counties": rows,
         }, ensure_ascii=False, indent=2))
         return
@@ -235,6 +236,8 @@ def cmd_tam(category, as_json=False):
     if total:
         print(f"\n  合計 ≈ NT$ {total / 1e8:,.0f} 億元")
     print("\n  註: 這是由下而上的推估 — 家庭消費支出僅涵蓋家戶消費，不含企業採購與政府支出。")
+    print("  註: 粒度為家庭收支調查的 10 大類。若目標市場窄於整個類別（如「雜誌」之於")
+    print(f"      「{cat}」），此數是上界的上界，可能高估數個數量級 — 只能當天花板，不能當 TAM。")
 
 
 def main():
