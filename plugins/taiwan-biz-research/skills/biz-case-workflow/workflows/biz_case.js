@@ -12,6 +12,13 @@ export const meta = {
   ],
 }
 
+// args can arrive as a JSON *string* instead of an object (the Workflow tool
+// warns of this). Parse it first — otherwise args.twDataPath / args.runDir are
+// undefined and the whole blob silently lands in `question`, wasting a full run.
+if (typeof args === 'string') {
+  try { args = JSON.parse(args) } catch { /* leave as-is; caught by guards below */ }
+}
+
 const question = (args && args.question) || (typeof args === 'string' ? args : null)
 const TW = (args && args.twDataPath) || ''
 // Deliverables land here: evidence/*.md per data pull + report.html. Without it
@@ -19,7 +26,19 @@ const TW = (args && args.twDataPath) || ''
 const RUN_DIR = (args && args.runDir) || null
 
 if (!question) {
-  return { error: 'No question supplied. Pass args: {question, twDataPath}.' }
+  return { error: 'No question supplied. Pass args as an object: {question, twDataPath, runDir}.' }
+}
+// twDataPath is an INPUT: without a real absolute path the data agents have
+// nothing to run and the entire ~20-agent run is wasted. Fail in one second, not
+// thirty minutes. A leftover ${...} means the caller never expanded the plugin
+// root — the sandbox cannot do it (no env, no fs), so this is a launch bug.
+if (!TW || TW.includes('${')) {
+  return { error: `twDataPath must be an absolute, fully-expanded path to the tw-data skill dir (got: ${JSON.stringify(TW)}). Resolve \${CLAUDE_PLUGIN_ROOT} in a bash step before launching — see the skill's "Run it" section.` }
+}
+// runDir is an OUTPUT and optional, but a literal ${...} would write the audit
+// trail to a nonsense directory — same launch bug, so reject it too.
+if (RUN_DIR && RUN_DIR.includes('${')) {
+  return { error: `runDir was passed unexpanded (got: ${JSON.stringify(RUN_DIR)}). Compute an absolute path (cwd + slug + date) before launching, or omit it entirely.` }
 }
 
 // Every agent needs to know how to actually run the data layer, and needs the
@@ -400,8 +419,10 @@ Raw material:
 - Evidence: ${JSON.stringify(ok)}
 - Failed pulls: ${JSON.stringify(failed.map(f => ({ label: f.label, error: f.error })))}
 - Cross-check reading:\n${crosscheck}
-- Evidence files were saved to ${RUN_DIR}/evidence/ — list that directory and
-  link each file from the numbers it backs.
+- The full evidence is in the `ok` array above — command, output, source per
+  pull. INLINE it into the methodology appendix (§6). Do NOT hyperlink to
+  evidence/*.md: a file: link dies the instant this HTML is opened on another
+  machine, on a phone, or published as an Artifact. This file must stand alone.
 
 Structure (Pyramid Principle — the answer first, then the support):
 
@@ -415,7 +436,7 @@ Structure (Pyramid Principle — the answer first, then the support):
    (「廣告市場分析」). The titles alone, read in order, must reconstruct the
    argument — that is the titles test, and it is the acceptance bar.
    One chart per section where a series exists. Every number carries 期間 and
-   來源, hyperlinked to its evidence/*.md file.
+   來源 as text (not a link) — the raw evidence is testified in §6 below.
 3. 對抗驗證紀錄: a table of every claim — survived ones with what they withstood,
    refuted ones with their cause of death. This is the report's credibility
    engine; give it space.
@@ -424,9 +445,10 @@ Structure (Pyramid Principle — the answer first, then the support):
    evidence.
 5. 分歧與盲區: where independent sources disagree and what that means; the SME
    gap, publication lags, bundled categories.
-6. 方法論與證據附錄: one row per pull — command, fetch timestamp, source, link
-   to the evidence file — plus one closing line: 所有來源免費、免金鑰、公開，
-   重跑指令即是驗證.
+6. 方法論與證據附錄: one row per pull — command, fetch timestamp, source, and
+   the key raw output inlined right there (wrap long output in a <details> block
+   so it collapses). No file: links — the evidence travels inside this file.
+   Close with one line: 所有來源免費、免金鑰、公開，重跑指令即是驗證.
 
 Chart rules (inline SVG):
 - Line for time series, horizontal bars for rankings, stacked bar for

@@ -15,35 +15,64 @@ answer is a *recommendation*, not a value.
 
 ## Run it
 
-The workflow script ships with this skill. Launch it with the Workflow tool:
+### 1. Resolve the paths first — do not eyeball them
+
+The workflow runs in a sandbox with **no filesystem, no env, no clock**: it
+cannot expand `${CLAUDE_PLUGIN_ROOT}` or compute a dated `runDir` itself. You do
+that in one bash step and pass absolute, already-expanded paths:
+
+```bash
+TW="${CLAUDE_PLUGIN_ROOT}/skills/tw-data"              # input: where the scripts live
+SLUG="wired-taiwan"                                     # short kebab slug of the question
+RUN_DIR="$(pwd)/biz-case-runs/${SLUG}-$(date +%F)"      # output: where deliverables land
+mkdir -p "$RUN_DIR"
+```
+
+**Derive both yourself; ask the user only if derivation genuinely fails** — a
+read-only cwd, or a cowork/cloud session where the retrievable outputs location
+isn't the working directory. Never ask for `twDataPath`: it is always the plugin
+root, so needing to ask means the skill wasn't launched correctly. If the paths
+still carry a literal `${...}` or `twDataPath` is empty, the script fails fast in
+one second (by design) rather than waste a ~20-agent run — resolve them and relaunch.
+
+### 2. Launch
 
 ```
 Workflow({
   scriptPath: "${CLAUDE_PLUGIN_ROOT}/skills/biz-case-workflow/workflows/biz_case.js",
   args: {
     question: "<the user's question, verbatim — do not pre-digest it>",
-    twDataPath: "${CLAUDE_PLUGIN_ROOT}/skills/tw-data",
-    runDir: "<cwd>/biz-case-runs/<question-slug>-<YYYY-MM-DD>"
+    twDataPath: "<the resolved $TW — absolute, no ${...} left in it>",
+    runDir: "<the resolved $RUN_DIR>"
   }
 })
 ```
 
-Pass args as a real JSON object, not a string. `question` and `twDataPath` are
-required. `runDir` is where the deliverables land — compute it yourself (slug +
-today's date; the script cannot read the clock) and pass an absolute path.
-Without it the workflow still runs but persists nothing: no evidence pack, no
-HTML report, results live only in the session transcript.
+Pass `args` as a real JSON object. The script now tolerates a JSON *string* too
+(it parses it), but the paths inside must still be absolute and fully expanded.
+`question` and `twDataPath` are required; `runDir` is optional but strongly
+recommended — without it nothing persists (no evidence pack, no report), results
+live only in the session transcript.
 
-With `runDir` set you get:
-- `evidence/*.md` — one file per data pull: the exact commands, fetch timestamp,
-  source URLs, and raw output. This is the verification story: every number in
-  the report links to its evidence file, and since every source is free and
-  keyless, re-running the recorded command IS the audit.
-- `report.html` — a self-contained deliverable (no CDN, inline SVG charts,
-  print-to-PDF ready): first screen is the action summary (recommendation, stat
-  tiles, flip conditions), then action-titled sections with one chart each, the
-  adversarial-verification record, untestable declarations, divergences and
-  blind spots, and the methodology/evidence appendix.
+### 3. Deliver it — the report must be openable, including on a phone
+
+When the workflow returns, `report.html` in `runDir` is a **single
+self-contained file**: evidence inlined, no external resources, no `file:` links,
+inline SVG charts, print-to-PDF ready. First screen is the action summary
+(recommendation, stat tiles, flip conditions), then action-titled sections with
+one chart each, the adversarial-verification record, untestable declarations,
+divergences and blind spots, and the methodology/evidence appendix.
+
+- **Local:** it opens straight from disk.
+- **Phone, share, or a cowork/cloud session with no usable local path:** read the
+  file and publish it as an **Artifact**. It was built to the Artifact contract
+  (self-contained, inline SVG, offline-forever), so it publishes as-is and returns
+  a private URL that opens on mobile.
+
+`runDir` is the on-disk audit copy — `report.html` plus `evidence/*.md`, one per
+pull (exact command, fetch timestamp, source, raw output; re-running the recorded
+command IS the audit). The **Artifact is the portable, mobile-openable
+deliverable**. In a session with no usable local path, the Artifact IS the delivery.
 
 **Sharpen the question before launching, not after.** The scope phase is only as
 good as what it receives, and a vague question produces a vague case at full
