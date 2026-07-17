@@ -54,7 +54,7 @@ Pass `args` as a real JSON object. The script now tolerates a JSON *string* too
 recommended — without it nothing persists (no evidence pack, no report), results
 live only in the session transcript.
 
-### 3. Deliver it — the report must be openable, including on a phone
+### 3. Deliver it — pick the channel by where the reader actually is
 
 When the workflow returns, `report.html` in `runDir` is a **single
 self-contained file**: evidence inlined, no external resources, no `file:` links,
@@ -63,16 +63,41 @@ inline SVG charts, print-to-PDF ready. First screen is the action summary
 one chart each, the adversarial-verification record, untestable declarations,
 divergences and blind spots, and the methodology/evidence appendix.
 
-- **Local:** it opens straight from disk.
-- **Phone, share, or a cowork/cloud session with no usable local path:** read the
-  file and publish it as an **Artifact**. It was built to the Artifact contract
-  (self-contained, inline SVG, offline-forever), so it publishes as-is and returns
-  a private URL that opens on mobile.
+That file is the artifact; how you hand it over depends on the reader's surface.
+The channels are NOT equally reliable — this ladder is from hard experience:
 
-`runDir` is the on-disk audit copy — `report.html` plus `evidence/*.md`, one per
-pull (exact command, fetch timestamp, source, raw output; re-running the recorded
-command IS the audit). The **Artifact is the portable, mobile-openable
-deliverable**. In a session with no usable local path, the Artifact IS the delivery.
+| Channel | Opens on a phone / remote-control session? | Needs a login? | Fidelity |
+|---|---|---|---|
+| **Google Doc via a Drive MCP** | ✅ native Docs/Drive app | the user's own Google (already signed in) | high — charts become tables |
+| Chat body (recommendation + findings as text) | ✅ always | no | text only |
+| Delivered file attachment (PDF / HTML / PNG) | ❌ card shows, tap does nothing | — | — |
+| Artifact URL | ❌ 404 unless signed in | claude.ai | full, incl. charts |
+| `report.html` / PDF on disk | ✅ but only back at the desktop | no | full |
+
+**So deliver by surface:**
+
+- **Desktop / a real local path:** `report.html` opens straight from disk. Offer
+  a PDF too — headless Chrome renders the SVG faithfully:
+  `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --no-pdf-header-footer --print-to-pdf="$RUN_DIR/report.pdf" "file://$RUN_DIR/report.html"`.
+- **Phone or a remote-control session — the reader can't open attachments and
+  isn't on claude.ai:** if a **Google Drive MCP is connected**, that is the
+  delivery. Upload the report as an HTML file with conversion ON so Drive turns it
+  into a Google Doc (`create_file` with `contentMimeType: "text/html"`,
+  `disableConversionToGoogleType: false`). The conversion **drops inline SVG**, so
+  build that upload from a table-based version of the charts, not the SVG report.
+  The user opens it in the native Docs app — no claude.ai login, no attachment card.
+  If no Drive MCP is available, put the recommendation and the driving findings
+  **in the chat body** — it is the only surface that always renders — and note the
+  full report is on disk for when they're back at a desktop.
+- **On claude.ai (web/desktop app):** publishing the self-contained `report.html`
+  as an **Artifact** gives a private URL with the charts intact. Treat it as the
+  value-add for a signed-in reader, not the primary mobile path — the URL 404s for
+  anyone not signed in.
+
+`runDir` stays the on-disk audit copy — `report.html` plus `evidence/*.md`, one
+per pull (exact command, fetch timestamp, source, raw output; re-running the
+recorded command IS the audit). Nothing above replaces it; they are how the reader
+*sees* it, on whatever surface they're on.
 
 **Sharpen the question before launching, not after.** The scope phase is only as
 good as what it receives, and a vague question produces a vague case at full
