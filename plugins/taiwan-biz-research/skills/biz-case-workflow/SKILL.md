@@ -1,6 +1,6 @@
 ---
 name: biz-case-workflow
-description: Run a full Taiwan business case end-to-end as a multi-agent workflow — scope the decision into falsifiable claims, fan out agents to pull real government data, cross-check the independent sources against each other, adversarially refute every claim from three lenses, then synthesize a recommendation with a completeness critic. Use when someone asks for a Taiwan market-entry, sizing, competitor, investment or timing case, an evidence-backed recommendation, or "研究一下台灣的 X 市場" — anything where the answer must be defensible rather than plausible. Not for a single lookup; use tw-data directly for that.
+description: Run a full Taiwan business case end-to-end as a hypothesis-driven multi-agent workflow — frame the question as 2-4 mutually exclusive strategic options, reverse-engineer what-would-have-to-be-true conditions per option, surface the key debates with bull and bear both argued, run skeptic-designed tests in a lazy-man loop that kills options early and expands the search when evidence runs dry, build a driver-tree market model with analog-market parameterization, profile competitors symmetrically, then choose the option with the fewest unresolved barriers and ship a monitoring plan. Use when someone asks for a Taiwan market-entry, sizing, competitor, investment or timing case, an evidence-backed strategic recommendation, or "研究一下台灣的 X 市場" — anything where the answer must be a defensible choice among options. Not for a single lookup; use tw-data directly for that.
 ---
 
 # Taiwan business case, end to end
@@ -107,43 +107,56 @@ not yet a case; "should we open a 火鍋 chain in 台中 next year" is.
 
 ## What it does
 
+Hypothesis-driven, per the composite MBB/sell-side method (Martin/Lafley
+strategic-choice structuring × McKinsey driver models × Goldman key debates):
+
 | Phase | What happens |
 |---|---|
-| **Scope** | One agent turns the question into a decision, picks ONE framework via `strategy-frameworks`, and writes 3-6 falsifiable claims + a plan of 3-6 *independent* data pulls |
-| **Evidence** | One agent per pull, running the `tw-data` scripts for real. A failed fetch is reported as a failure — never backfilled from memory |
-| **Crosscheck** | A barrier: all evidence lands, then one agent reconciles the independent reads. Agreement is confirmation; divergence is the finding |
-| **Verify** | Every claim attacked by three agents with different lenses — data, reasoning, framing. Two refutations kill the claim |
-| **Synthesize** | The case is written from survivors only, then a completeness critic names what is still missing |
-| **Report** | One agent turns everything — draft, critique, verification record, untestable list, evidence links — into the self-contained HTML report (skipped if no `runDir`) |
+| **Frame** | 2-4 MUTUALLY EXCLUSIVE strategic options (status quo included), each a coherent "happy story" of how it wins. No critique yet — skepticism becomes conditions |
+| **Conditions** | Per option: what would have to be TRUE (industry / customer / position / competition), weeded to 3-6 binding conditions, each scored with pre-test confidence |
+| **Debates** | The lowest-confidence conditions become 2-4 key debates — bull and bear both at full strength. A skeptic agent designs each test: metric, pass threshold at the highest standard of proof, runnable data plan |
+| **Test** | Lazy-man loop (≤3 rounds): least-believed conditions first, cheap kills first. A failed must-have condition kills its option — no further spend on it. Insufficient evidence triggers an EXPANDED search (analog markets, web) next round |
+| **Model** | Driver-tree market model: explicit boundary, hypothesis-driven segments, 3-5 drivers each with a named basis (Taiwan series or analog-market curve), a two-ended range, sensitivity on the two most contested drivers, top-down vs bottom-up reconciliation |
+| **Competitors** | One bespoke decomposition applied symmetrically to up to 6 named players; each gets real metrics (period + source), a strategic archetype, and a binding constraint |
+| **Choose** | Anticlimactic: fewest unresolved barriers wins (or "undecidable" + the cheapest decisive action). Bull/base/bear = the debates resolving each way. Then a completeness critic attacks what is missing |
+| **Report** | Self-contained HTML: options map with killed options and their cause of death, the debates record, model, comp table, what-you-need-to-believe, signposts monitoring plan, inlined evidence appendix (skipped if no `runDir`) |
 
-It returns `{report, decision, framework, untestable, draft, critique, claims: {survived, refuted}, evidence, crosscheck, failed_pulls}`.
+It returns `{report, decision, options: {framed, excluded, killed, alive},
+debates, conditions, test_results, model, competitors, choice, critique}`.
+
+Cost: expect roughly 25-45 agents and 2-4M tokens per run — two to three times
+the old verification pipeline. It buys a strategy machine instead of a
+fact-checking machine; for a single verified fact, use `tw-data` directly.
 
 ## Why it is shaped this way
 
-Three decisions in the script that are not arbitrary:
+**Options before evidence.** Until at least two mutually exclusive options are
+framed, no choice can be made — analysis without a choice frame is territory
+survey. The status quo enters as an option and faces the same tests.
 
-**Independent pulls, not more pulls.** `tw-data` covers four separate reads on
-the same economy — the cycle light, listed-company revenue, export orders, and
-production/retail. Four pulls from one script is one read with extra steps. The
-scope agent is told this explicitly because it is the easy mistake.
+**Conditions, not arguments.** "What would have to be true" needs no evidence
+yet and cannot be disputed as fact — which is what converts a team's
+disagreement into testable conditions instead of dueling advocacy. The
+skeptic doesn't argue; the skeptic sets the falsification bar.
 
-**Three lenses, not three refuters.** A business-case claim fails in three
-distinct ways: the number is wrong (data), the number doesn't support the claim
-(reasoning), or the claim answers a question nobody asked (framing). Three
-identical skeptics find the first and miss the other two.
+**Lazy-man sequencing.** Test the least-believed condition first; if it fails,
+the option dies with no further spend. Analysis goes an inch wide and a mile
+deep on what actually decides the case.
 
-**Refuted claims are passed to the synthesizer as refuted.** Otherwise they
-quietly reappear — a dead claim that was central is itself worth reporting.
+**Two-ended ranges, analog parameterization.** Where Taiwan has no number, a
+named analog market's curve (JP/KR/HK/SG) bounds it — parameterization by
+precedent, not abstract optimism. Single-point estimates are prohibited.
+
+**Killed options ship with their cause of death.** The
+rejected-alternatives exhibit is a credibility engine, not an embarrassment.
 
 ## Reading the output
 
-The `draft` is not the deliverable. Read `critique` first — it is the honest
-account of what the draft is missing — then decide whether to patch the draft or
-re-run with a tighter question.
-
-Also check `failed_pulls` before presenting anything. A case built on three of
-five planned sources may still be sound, but the reader is entitled to know.
-Silence about a failed pull reads as coverage that never happened.
+Read `choice.what_you_need_to_believe` and `critique` first — they are the
+honest account of what remains assumption. Then `options.killed`: a killed
+option whose cause of death is thin deserves a second look. `test_results`
+verdicts of `insufficient` after 3 rounds mean the search was exhausted, not
+that the answer is no.
 
 ## Re-running
 

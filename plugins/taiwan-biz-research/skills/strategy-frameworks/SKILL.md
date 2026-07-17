@@ -164,6 +164,52 @@ reading. A PEST slide is almost always filler.
 Being unable to build these is a finding worth stating, not a gap to paper over
 with estimates.
 
+## From question to OPTIONS — the step before any framework
+
+A framework analyses; it does not choose. Before framework selection, frame the
+question as a choice between 2-4 MUTUALLY EXCLUSIVE options (the Martin/Lafley
+discipline; `biz-case-workflow` automates this). Typical option sets by
+question type — starting points, not menus:
+
+| Question type | Typical mutually exclusive options |
+|---|---|
+| Market entry (brand/product) | Wholly-owned build · bolt onto an existing local operation · asset-light license/syndicate · don't enter (status quo) |
+| Business-model sustainability | Ad-funded · direct paid/subscription · hybrid membership · B2B/licensing pivot |
+| Timing | Enter now · enter on a named trigger (signpost) · wait one cycle |
+| Competitive response | Match the mover · flank (different segment/model) · hold and harvest |
+| Growth direction | Deepen current segment · adjacent category (Ansoff) · adjacent geography · acquire |
+
+Rules that carry over from the choice discipline: the status quo is an option
+and faces the same tests; each option must be a coherent story of WINNING, not
+a hedge; if a proposed option ignores an existing local operation of the same
+company, the framing is wrong — check first.
+
+## Which MODEL feeds the analysis
+
+"Model" means a driver tree with a two-ended range — never a single point.
+Route by what must be quantified:
+
+| What must be quantified | Model shape | Feeds from |
+|---|---|---|
+| Market size / opportunity | TAM driver tree: population × penetration × frequency × price | `household.py --tam/--mix` for the ceiling; analog-market curve for penetration (see below) |
+| Model sustainability | Unit economics: audience × conversion × ARPU − cost | Reuters DNR paid rates bound conversion; costs are first-party (declare untestable) |
+| Timing | Cycle position + lead indicators | `ndc_signal.py`, `moea_orders.py --orders` |
+| Industry trajectory | Tax-base trend, real (CPI-deflated) | `mof_industry.py --history` + `dgbas_macro.py --cpi` |
+| Competitive intensity | Share-shift / concentration read | `twse_revenue.py --industry` (listed only — say so) |
+
+**Analog-market parameterization** — the move that makes Taiwan modelable:
+where Taiwan has no number (penetration endpoint, paid-content rate, adoption
+speed), bound it with a NAMED analog market's actual curve — JP/KR/HK/SG by
+default (retrieval methods in tw-data's `references/external-sources.md`).
+State the lag logic ("Taiwan trails Korea's broadband curve by N years") and
+why the analog is right. MGI sizes China e-tail scenarios exactly this way:
+high case = ride Korea's curve, base = US/Taiwan, low = Taiwan's own.
+
+Sensitivity is mandatory: name the two most contested drivers and show how the
+range moves as each swings. If the recommendation survives the whole swing, say
+so — that is a strong finding. If it flips inside the plausible range, the
+driver is a key debate, not an assumption.
+
 ## Framework → argument
 
 The framework is scaffolding; it comes down before delivery. What ships is a
@@ -180,4 +226,4 @@ export orders, production/retail — exist so a claim can be corroborated. When 
 agree, the finding is solid. **When they diverge, the divergence is the finding.**
 
 Related: `tw-data` for the numbers, `biz-case-workflow` to run the whole case
-end-to-end.
+end-to-end (options → conditions → debates → tests → model → choice).

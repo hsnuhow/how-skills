@@ -111,3 +111,33 @@ Wayback CDX shows the site alive through 2017-01, HTTP 500 from 2017-03, domain
 redirected after — **inferred death: early 2017, ~5 years of life** (mark as
 Wayback-inferred, not official). Source: techorange.com/2012/01/03/wired-20120104/.
 Any Taiwan digital-media licensing case should reckon with this precedent first.
+
+## 類比市場曲線 — JP/KR/HK/SG (for model parameterization)
+
+Where Taiwan has NO number (penetration endpoint, paid-content rate, adoption
+speed), bound it with a named analog market's actual curve. This is how MGI
+parameterizes scenarios (China e-tail high case = ride Korea's broadband curve).
+State the lag logic and why the analog fits — an analog without a reason is
+just a wish.
+
+**Reuters Institute DNR country pages** (annual, free): every market page —
+Japan, South Korea, Hong Kong, Singapore, Taiwan — carries the same fields:
+paid-news rate, brand trust, weekly reach, social/aggregator dependence. Same
+retrieval as the Taiwan page above (fetch the country page, parse body text +
+datawrapper CSVs). This gives a cross-market paid-content ladder for the same
+year, and each market's history back to ~2017 for curve shapes.
+
+**Penetration/infrastructure series** (free, official): ITU DataHub
+(datahub.itu.int) for internet/broadband/mobile penetration by country-year;
+national stats offices for the finer grain — e-Stat (Japan), KOSIS (Korea),
+singstat.gov.sg, censtatd.gov.hk. All keyless. ITU is the fastest single
+source for a cross-market penetration curve.
+
+**Caveats:** (1) Analog evidence must be LABELED as analog in any output —
+it bounds a Taiwan number, it is not one. (2) Check structural comparability
+before using the curve: Korea's news market is portal-dominated (Naver) like
+Taiwan's (Yahoo/LINE), which makes it a good analog for aggregator dynamics
+but a poor one for direct-brand subscription. Japan's print loyalty makes it
+the wrong analog for digital-transition speed. Say which dimension the analog
+is valid on. (3) These URLs are retrieval starting points, not verified-alive
+endpoints like endpoints.md — verify on fetch, per the standing rule.
