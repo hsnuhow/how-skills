@@ -4,6 +4,13 @@ Every row below was fetched successfully while building this skill. All are free
 and keyless unless noted. Wrapped = a script in `../scripts/` already handles it;
 otherwise use `twdata/_fetch.py` directly — it absorbs the pitfalls.
 
+**This file answers "what exists, where, and how it breaks." For the exact
+columns — real headers, units, sample rows, verified latest period — see
+[`schemas.md`](schemas.md)**, the index to a per-source schema catalogue in
+`schemas/` (live-fetch sweep, 2026-07-18). Open only the one file you need;
+the set totals ~190 KB. Read the target's schema before writing a parser —
+several entries below were corrected by that sweep.
+
 ## Wrapped
 
 | Signal | Source | Depth | Script |
@@ -67,10 +74,23 @@ but these pre-generated files go deeper than the query system did.
 |---|---|---|---|
 | 失業率 | `11525/230038/mp0101a07.xml` | 630 | 1978→ |
 | 勞動力參與率 | `11525/230038/mp0101a06.xml` | 630 | 1978→ |
+| **縣市別失業率** | `11525/230038/mp0101a10.xml` | — | (313 KB) — county × month, verified 2026-07 |
 | 經常性薪資 | `11525/230037/mp05002.xml` | 604 | 1980→ |
 | 總薪資 | `11525/230037/mp05001.xml` | 604 | 1980→ |
+| **受僱員工人數 (分行業)** | `11525/230037/mp05003.xml` | — | (1.71 MB) — industry × month, verified 2026-07 |
 | GDP 季 | `11525/230514/na8101a1q.xml` | 7,830 | **1961Q1→** |
 | CPI | `11525/230555/pr0101a1m.xml` | 88,452 | 1981M01→ (15.7 MB — stream) |
+
+The 230037 and 230038 directories hold **more than the rows above** — a 2026-07
+sweep found 縣市別失業率 (`mp0101a10`) and 分行業受僱員工人數 (`mp05003`) sitting in
+the same two directories the skill already reads, plus 就業/失業/勞動力人數 by
+sex×age (`mp0101a01`–`a05`, `a08`, `a09`) and 已婚婦女勞參率 (`a11`). The
+**縣市別失業率** is the load-bearing add: it crosses against NCCC county spend and
+家庭收支 county data for regional consumer work. `mp05001`/`02`/`03` together ARE
+part of 受僱員工薪資與生產力統計 — the earlier "403, needs a fresh sweep" note was
+wrong for the statistic as a whole. Only **加班工時 (overtime hours)** genuinely
+isn't in this directory tree (mp05004–20, mp0502*, mp0601* all 404) — that one
+component still needs a source.
 
 Two incompatible schemas: GDP/CPI use SDMX-ish `<Obs><Item><TIME_PERIOD>`;
 人力/薪資 use flat `<DataCollection><失業率>`. Annual rows interleave with monthly
@@ -79,8 +99,15 @@ twice (`TYPE` = 原始值 / 年增率).
 
 **MOEA** — `service.moea.gov.tw/EE520/opendata/{中文檔名}.csv`, UTF-8 BOM, ROC
 `YYYMM`. The HTML portal is CF-403; these CSVs are not.
-- 工業生產指數 (`16366`, 1.19 MB, →1982-01)
-- 批發零售及餐飲業營業額指數 (`16365`, 870 KB) — released 23rd-26th of the next month
+- **製造業生產價值指數** (`16366`, 1.19 MB, →1982-01) — NOT the industrial
+  production index. It is a **nominal value** index (基期 110年=100), so price
+  and volume cannot be separated; reading it as "output" overstates any
+  period when prices rose. Manufacturing (C) only — no mining, no utilities.
+  32 分類 with 四大工業群 (I1-I4) mixed into the same 行業別 column.
+- 批發零售及餐飲業營業額指數 (`16365`, 870 KB) — released 23rd-26th of the next month.
+  38 業別, 基期 110年=100, **nominal — no real/price column, deflate externally**
+  (CPI 總指數 overstates 綜合商品零售 by ~1.8pp; use the matching CPI 基本分類).
+  `餐館` and `飲料店` have no 業 suffix while their sibling `外燴及團膳承包業` does.
 - 外銷訂單: 電子產品 (`16362`) / 資通訊 (`16361`), →1984-01
 
 **CBC** — `www.cbc.gov.tw/public/data/OpenData/…` (URL-encode the Chinese dirs).
@@ -101,18 +128,39 @@ twice (`TYPE` = 原始值 / 年增率).
   for all 11 datasets: `/OAI/v2/api-docs`.
 - **`web02.mof.gov.tw/njswww/webMain.aspx?sys=220&…&funid=i0520&…&utf=1`** —
   the 財政統計資料庫 CSV export, monthly 107→, 3-digit 稅務行業小類 (581 新聞、
-  雜誌、期刊、書籍及其他出版業) × 22 counties, units 千元. **This is the only
-  free read on an industry's revenue that includes SMEs and services** — the
-  complement to TWSE's listed-only view. Wrapped: `mof_industry.py`.
-  Traps (all handled by the script): funid binds a classification revision to a
-  year span (i0509 = 107-111 / 8th revision, i0520 = 112-116 / 9th — J 大類 was
-  renamed across the seam, joins need mapping); **asking a funid for a year it
-  doesn't cover silently returns its newest year, HTTP 200, bytes identical to
-  the real file — validate the periods in the body, never trust `ym`**; `(D)` =
-  保密隱匿, `－` = none, negatives are real (銷售折讓); VAT files bimonthly so
-  odd months are tiny; `utf=1` required (BOM); host occasionally drops
-  connections — retry once. 營業稅法第8條 exempts magazines' own sales + ad
-  revenue, so 58x is structurally understated.
+  雜誌、期刊、書籍及其他出版業) × 22 counties, units 千元. **This is the only free
+  read on an industry's revenue at 3-digit × county granularity in one cube.**
+  Wrapped: `mof_industry.py`. Traps (all handled by the script): funid binds a
+  classification revision to a year span (i0509 = 107-111 / 8th revision,
+  i0520 = 112-116 / 9th — J 大類 was renamed across the seam, joins need mapping);
+  **asking a funid for a year it doesn't cover silently returns its newest year,
+  HTTP 200, bytes identical to the real file — validate the periods in the body,
+  never trust `ym`**; `(D)` = 保密隱匿, `－` = none, negatives are real (銷售折讓);
+  VAT files bimonthly so odd months are tiny; `utf=1` required (BOM). 營業稅法第8條
+  exempts magazines' own sales + ad revenue, so 58x is structurally understated.
+  - **⚠ OUTAGE (verified 2026-07-18): the `sys=220` report engine is down.**
+    Not the host — `sys=100/120/200/230/240` static pages answer in 50ms, but the
+    **entire `sys=210`/`sys=220` subsystem backend hangs** (app-pool/connection-pool
+    exhaustion, most likely): even the 72-byte empty `funid=defjsptgl` shell times
+    out when hung under `sys=220`, and shrinking the query on every axis (single
+    month, single industry, every `outmode`) changes nothing. 36+ attempts, curl
+    and headless Chrome alike. **Cheap liveness probe** (not a 100s real query):
+    `GET sys=220&funid=defjsptgl` — 72 bytes when the backend revives, timeout while
+    dead. Poll that; only run a real export once it returns.
+  - **✅ LIVE REPLACEMENT while `sys=220` is down** — the same statistics as static
+    Excel on a *different* host, `service.mof.gov.tw` (healthy, ~100ms):
+    `service.mof.gov.tw/public/Data/statistic/monthly/{YYYMM}/{表號}_{YYYMM}.{xlsx|xls|ods}`
+    (`.xlsx` from 112-, `.xls`/`.ods` for 107-111). **It splits the cube into two
+    projections rather than the full cross-tab:**
+    - `23090` 表3-9 — **3-digit industry × month, national** (231 小類 across 7
+      worksheets 表/表(續1..續6完); units 百萬元 — 1000× the web02 千元). Verified
+      107/01→115/05.
+    - `23110` 表3-11 — **major-category × 22 counties × month** (19 大類, 百萬元).
+    - The one thing neither projection gives is **3-digit × county in the same
+      cell** — that lived only in the dead `sys=220`. If the model needs a specific
+      county's specific 3-digit service industry, there is no free live source; use
+      the national 3-digit (表3-9) or the county major-category (表3-11) instead, and
+      say which. SEGIS `segis.moi.gov.tw` carries only 大類 × county, same limit.
 
 **MOL** — `apiservice.mol.gov.tw/OdService/rest/dataset` → 860 dataset ids;
 `/datastore/{id}` for data. `?modified=yyyy-MM-dd` for incremental sync.
@@ -122,10 +170,30 @@ twice (`TYPE` = 原始值 / 年增率).
 short `/pmi` and `/nmi` paths 404.** Best free leading indicator (new orders lead
 output by 1-2 quarters). NDC mirrors it but 403s non-browser agents.
 
-**NCCC 信用卡消費** — data.gov.tw, monthly CSV, real transactions by 縣市 ×
-產業 × 性別 × 職業. Best free consumer-demand granularity: `62945` (EC by
-industry), `38329` (occupation × county). Not 100% of card volume — use for
-trend and mix, not absolute size.
+**NCCC 信用卡消費** — the best free read on consumer demand, and far larger than
+previously recorded: **~2,300 static CSVs in 15 schemas**, monthly 201401→202604,
+UTF-8-BOM, no key. Go direct to `www.nccc.com.tw/dataDownload/{維度}/{檔名}.CSV`
+rather than through data.gov.tw. Full URL grammar, three code tables (地區/業別/維度)
+and all 15 schemas are in `schemas.md` §6. The load-bearing traps:
+- **`BANK_*` (發卡端, 38 issuers, cardholder attributes) and `NCCC_*` (收單/處理端,
+  includes UnionPay/DFS/debit) are different populations — never add them.**
+- **`Top10ForeignCardConsumption*` is OUTBOUND** (國人在海外刷卡), despite the name.
+  Real inbound lives in `Foreign/Location|Location EC|Industry`. Magnitude proof:
+  202604 Taipei-only Top10 = NT$13.87bn vs national inbound NT$8.01bn.
+- **「跨境」(ICR) is a currency definition, not a geographic one** — "帳單原始幣別
+  不為新臺幣". Cross-border e-commerce and DCC transactions billed in Taiwan count in;
+  overseas swipes billed in TWD count out. It is not "spending while abroad".
+- **「跨縣市」(DCR) is a postcode comparison**, so online orders (merchant registered
+  in Taipei) contaminate it heavily — a poor proxy for travel/commuting spend.
+- Industry codes mislead: **`LG`(住) includes 裝潢及電器**, **`EE`(文教康樂)
+  includes 醫療及保健**.
+- **產業別 × 跨境/跨縣市/國別 crosstabs do not exist** (15 combinations tested, all
+  404). "How much clothing did Taipei residents buy in Japan" is unanswerable from
+  open data — that needs MCC-level data from an issuer or NCCC directly.
+- `ICR`/`DCR`/`Country`/`Billing Address` have counties but **no TWN total**;
+  `EC`/`Foreign/Industry`/`NCCC Open Data/Industry` have TWN but **no counties**.
+- EC series break at 2023-09 (繳費稅平台 folded in); `Billing Address` starts 202008.
+Not 100% of card volume — use for trend and mix, not absolute size.
 
 **PCC 政府採購** — `pcc-api.openfun.app/api/searchbytitle?query=…&page=1`,
 same-day freshness (the official XML at `web.pcc.gov.tw` lags ~2 months).
@@ -133,15 +201,38 @@ Volunteer-run, no SLA, attribution required; `total_records: 10000` looks like a
 cap, not a true count. Keep the official XML as a durable fallback.
 
 **GCIS 公司登記** — `data.gcis.nat.gov.tw/od/data/api/{uuid}?$format=json&$filter=Business_Accounting_NO eq {統編}`,
-keyless. Filter by 統編, not by name (`Company_Name like` returns 400). The
-entity-resolution spine — but registration data only, no revenue. Updates are
-不定期.
+keyless. The entity-resolution spine — but registration data only, no revenue.
+Updates are 不定期. Dates are **民國 7 碼 zero-padded** (`0760221`), which must be
+converted before joining fbfh's 西元 8 碼.
+- The authoritative uuid list is `data.gcis.nat.gov.tw/resources/swagger/swagger.json`
+  (16 APIs, with each one's required params and `$filter` regex). **Do not use the
+  uuids shown on `/od/datacategory`** — those are internal `oid`s and every one
+  returns `此API不存在`.
+- **Correction (verified 2026-07): `Company_Name like` on a 統編-type API does NOT
+  return 400.** It returns **HTTP 200 with an empty body** — silently
+  indistinguishable from "no such company". To query by name use the dedicated
+  endpoint `6BBA2268-1367-4B42-9CCA-BC17499EBE8C` (公司登記關鍵字查詢), which also
+  requires `Company_Status`; its `like` is a substring match (查「台積電」returns
+  台積電機/台積電梯 but **not** TSMC itself).
+- Every error is HTTP 200 — missing `$filter` returns plain text
+  `$filter參數有誤`. Validate that the body parses as JSON.
+- `$top` caps at 1000, `$skip` at 500000 — no full dump of all ~1.6M companies.
 
 ## Known gaps
 
-Not published as open data at all: **PPI/躉售物價** (retired), **monthly 加班工時**
-(annual only — and it's a component of the NDC leading indicator, which is why
-`ndc_signal.py` shows it blank).
+Not published as open data at all: **PPI/躉售物價** (retired).
+
+**加班工時 (overtime hours) — narrowed, not solved.** Verified 2026-07: MOL's 860
+datasets contain **no working-hours series at any frequency** (title sweep for
+工時/時數/工作時間 returned 7 hits, all unrelated). It belongs to DGBAS
+受僱員工薪資與生產力統計 — most of which IS reachable (`mp05001`/`02`/`03` in the
+230037 XML directory above, verified live), but the **hours** table specifically
+was not found: `mp05004`–`mp05020`, `mp0502*`, `mp0601*` all 404, and the CSV/query
+front doors (`www.dgbas.gov.tw/public/data/open/...csv` WAF-403,
+`winsta.dgbas.gov.tw/winsta/` 404, `nstatdb` returns the HTML query UI) don't serve
+it. It is a component of the NDC leading indicator, which is why `ndc_signal.py`
+shows it blank. **The remaining gap is the hours table's XML path** — the薪資 tables
+next to it were found, so it likely exists under a relfile id not yet enumerated.
 
 Decision-critical numbers that exist only outside open data — **台灣數位廣告市場量**
 (DMA annual PDF), **線上新聞/內容付費率** (Reuters DNR Taiwan page), **文化內容
@@ -162,6 +253,27 @@ for「哪個市場買什麼」finer than the customs bulk CSV. Verified 2026-07:
 - The `Tview` XLS/ODF download 302s away — don't rely on it.
 - Sibling tables: FSC3020F 按貨品, FSC3030F 國×貨品歷年, FSC3040F 國家名次,
   FSC3080I 國家代號對照.
+- **`rdoUnit` is what the server reads, not `FrdoUnit`.** The visible 金額/重量/數量
+  radio is named `FrdoUnit` and is ignored; setting it alone returns USD figures
+  silently labelled as kg. `rdoUnit=1|2|3` = 美元/公斤/數量; `rdoUnit=0` returns empty.
+- **HS codes auto-right-pad.** `220830`, `22083000` and `2208300000` return
+  byte-identical results, so a 6-digit query is the sum of every 11-digit CCC
+  beneath it — you never need the full CCC code.
+- Missing any one form field → **302 to `Static/Error.html`**, not 4xx. Send
+  `ddlCONTINENTAL` and `ddlAREA` even when unused.
+- Column 2 of the response is an **auto-generated prior-period baseline**, not your
+  query window. Don't mistake it for the current period.
+- **FSC3020F (按貨品排名) cannot be driven programmatically** — every parameter
+  combination 302s. To enumerate sub-codes, loop FSC3010F per HS code instead.
+  FSC3020F also only reaches back to 2015 vs FSC3010F's 1989.
+- **FSC3080I is the one endpoint that returns JSON**, not HTML:
+  `POST /cuswebo/FSC3080I/GetFSC3080I_Form3` (empty body) → 274 countries with
+  `{coll, NO, CNAME, ENAME}`. `_Form1` 302s.
+- **This closes the 烈酒 gap.** HS `220830` (威士忌) monthly imports, 1989→2026, by
+  country, with kg alongside USD so unit price is derivable. Verified: 2023 peak
+  US$722.8M → 2024 US$600.9M (−16.9%) → 2025 US$487.5M (−18.9%), 2026H1 −10.6%.
+  Still import-side, so destocking vs end-demand remains unresolved — but three
+  consecutive years and −32.6% off peak is hard to explain by inventory alone.
 
 **fbfh 出進口廠商名錄** — `fbfh.trade.gov.tw/opendata/companyData.csv`
 (data.gov.tw/dataset/79641 302s here). 103 MB, ~373k rows, UTF-8 BOM, daily.

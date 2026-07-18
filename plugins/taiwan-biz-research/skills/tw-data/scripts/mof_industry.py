@@ -1,25 +1,36 @@
 #!/usr/bin/env python3
-"""營業稅銷售額按行業別 — the only free read on industry revenue that includes SMEs.
+"""營業稅銷售額按行業別 — the free read on industry revenue that includes SMEs.
 
-MOF 財政統計資料庫, monthly, by 22 counties, down to 3-digit 稅務行業小類
-(e.g. 581 新聞、雜誌、期刊、書籍及其他出版業). This is the complement to TWSE's
-listed-only view: when an industry's players are unlisted (media, education,
-services), this is the one series that still sees them.
+The old source (web02.mof.gov.tw sys=220 report engine) served a single
+3-digit-industry × 22-county × month cube, but its backend has been hanging
+since at least 2026-07 (the host is up; sys=210/220 specifically time out on
+every query, even a shrunk one — see references/endpoints.md). This script
+now reads the 財政統計月報 static Excel on a *different*, healthy host,
+service.mof.gov.tw, which splits that cube into two projections:
 
-  python3 scripts/mof_industry.py --list 出版          # find the industry name
-  python3 scripts/mof_industry.py --industry 581       # national sales, by period
+  表3-9  (23090) — 3-digit industry × month, NATIONAL     -> --industry / --list
+  表3-11 (23110) — major-category × 22 counties × month    -> --county
+
+The one thing neither projection gives is 3-digit × county in the same cell —
+that lived only in the dead sys=220. Use national 3-digit or county
+major-category and say which.
+
+  python3 scripts/mof_industry.py --list 出版          # find the 3-digit name
+  python3 scripts/mof_industry.py --industry 581       # national monthly series
   python3 scripts/mof_industry.py --industry 出版      # substring match on names
-  python3 scripts/mof_industry.py --industry 581 --history 5   # annual series
-  python3 scripts/mof_industry.py --industry 581 --county      # county breakdown
+  python3 scripts/mof_industry.py --industry 581 --history 12   # 12-month series
+  python3 scripts/mof_industry.py --county 批發        # a major-category by county
   python3 scripts/mof_industry.py --industry 581 --json
 
 Caveats that matter:
-- 口徑 is 營業稅銷售額 as *self-reported* by 稅籍行業別 — not survey output.
-- 營業稅法第 8 條 exempts magazines' own-publication sales and their ad revenue,
-  so 58x publishing numbers are structurally UNDERSTATED. State this when citing.
-- VAT is filed bimonthly: odd-month values are tiny. Use annual or cumulative.
-- 112 年 switched to the 9th revision of the 稅務行業分類 (funid i0520); 107-111
-  use the 8th (i0509). Names differ across the seam — joins need a mapping.
+- Unit is 新臺幣百萬元 (the old千元 source was 1000× finer text; numbers here are
+  100× a 億元). 口徑 is 營業稅銷售額 self-reported by 稅籍行業別, not survey output.
+- 營業稅法第 8 條 exempts magazines' own-publication sales and ad revenue, so
+  58x publishing is structurally UNDERSTATED. State this when citing.
+- VAT is filed bimonthly: a given month's row can be small; the 月報 lists the
+  last 6 months, so read the trend, not one month.
+- Coverage is 112 年 (2023) onward, where the source is .xlsx. 107-111 exist only
+  as legacy .xls/.ods (not read here) or in the dead sys=220.
 """
 
 from __future__ import annotations
@@ -29,198 +40,249 @@ import datetime
 import json
 import re
 import sys
-import time
 
-from twdata._fetch import FetchError, fetch, read_csv_rows
+from twdata._fetch import FetchError, fetch
+from twdata._xlsx import read_xlsx
 
-# funid pins a classification revision to a year range; codspc0 is the row count
-# the export form expects for that revision. Wrong pairings silently return the
-# newest year the funid knows — see _guard_year().
-FUNIDS = [  # (funid, roc_from, roc_to, codspc0)
-    ("i0520", 112, 116, "0,358,"),
-    ("i0509", 107, 111, "0,356,"),
-]
+BASE = "https://service.mof.gov.tw/public/Data/statistic/monthly/{ym}/{tbl}_{ym}.xlsx"
+T_INDUSTRY = "23090"   # 表3-9  3-digit industry × month, national
+T_COUNTY = "23110"     # 表3-11 major-category × 22 counties × month
 
-URL = ("https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym={y}00&ymt={y}12"
-       "&kind=21&type=6&funid={funid}&cycle=41&outmode=12&compmode=00&outkind=3"
-       "&fldspc=23,23,&codspc0={codspc0}&utf=1")
-
-_CODE = re.compile(r"^([A-Z]\.|\d+)")
+_MONTH_RE = re.compile(r"(\d+)\s*年\s*(\d+)\s*月")
 
 
-def _funid_for(year: int) -> tuple[str, str]:
-    for funid, lo, hi, codspc0 in FUNIDS:
-        if lo <= year <= hi:
-            return funid, codspc0
-    raise SystemExit(f"民國 {year} 年不在已知 funid 範圍 (107-116)。新年度需要查新的 funid。")
+def _prev_ym(ym: int) -> int:
+    """民國 YYYMM minus one month."""
+    y, m = divmod(ym, 100)
+    return (y - 1) * 100 + 12 if m == 1 else ym - 1
 
 
-def _fetch_year(year: int) -> bytes:
-    """web02 drops connections now and then; one retry is usually enough."""
-    funid, codspc0 = _funid_for(year)
-    url = URL.format(y=year, funid=funid, codspc0=codspc0)
-    for attempt in (1, 2):
+def _fetch_report(ym: int, tbl: str, *, probe: bool = False) -> bytes:
+    # A published 月報 never changes, so freeze it (permanent cache). Probing for
+    # the latest period must NOT use the cache — it has to see newly published files.
+    return fetch(BASE.format(ym=ym, tbl=tbl), min_bytes=8_000,
+                 use_cache=not probe, freeze=not probe)
+
+
+def _latest_ym(tbl: str) -> int:
+    """月報 lags 1-2 months; walk back from this month until a file resolves."""
+    today = datetime.date.today()
+    ym = (today.year - 1911) * 100 + today.month
+    for _ in range(6):
         try:
-            return fetch(url, min_bytes=50_000)
+            _fetch_report(ym, tbl, probe=True)
+            return ym
         except FetchError:
-            if attempt == 2:
-                raise
-            time.sleep(2)
-    raise AssertionError  # unreachable
+            ym = _prev_ym(ym)
+    raise SystemExit("service.mof.gov.tw 最近 6 個月的月報都抓不到 — 稍後重試。")
 
 
-def _parse(body: bytes) -> dict:
-    """-> {header: [...counties], rows: [(period, industry, [values])]}
+def _norm_month(label: str) -> str:
+    """'115年 2月' -> '2026-02'; anything unparseable passes through."""
+    m = _MONTH_RE.search(label or "")
+    if not m:
+        return (label or "").strip()
+    return f"{int(m.group(1)) + 1911}-{int(m.group(2)):02d}"
 
-    First column is a compound '{期間}/ {行業}'. Values: (D) = 保密隱匿,
-    － = none, negatives are real (銷售折讓). Unit is 千元 throughout.
+
+def _num(cell: str) -> float | None:
+    v = (cell or "").strip().replace(",", "")
+    if v in ("", "-", "－", "…", "(D)", "X"):
+        return None
+    try:
+        return float(v)
+    except ValueError:
+        return None
+
+
+# --- 表3-9 : 3-digit industry × month, national ----------------------------
+
+def _parse_industry(body: bytes) -> dict:
+    """-> {months: [6 AD months], industries: {code: {name, sales:[6]}}}.
+
+    Columns (0-based): 0 大類 / 1 中類 / 2 小類(3-digit) / 3 名稱 / 4 家數 /
+    5-10 sales for the last 6 months / 11 cumulative. Month labels live in the
+    5th grid row (index 4), cols 5-10. All 7 worksheets share that header; the
+    3-digit rows are spread across them.
     """
-    raw = read_csv_rows(body)
-    header = [h.split("/")[0] for h in raw[0][1:]]
-    rows = []
-    for r in raw[1:]:
-        if not r or "/" not in r[0]:
-            continue
-        period, industry = (p.strip() for p in r[0].split("/", 1))
-        vals = []
-        for v in r[1:]:
-            v = v.strip()
-            if v in ("(D)", "－", "-", "…", ""):
-                vals.append(None)
-            else:
-                try:
-                    vals.append(int(v))
-                except ValueError:
-                    vals.append(None)
-        rows.append((period, industry, vals))
-    return {"header": header, "rows": rows}
+    sheets = read_xlsx(body)
+    first = next(iter(sheets.values()))
+    label_row = first[4] if len(first) > 4 else []
+    months = [_norm_month(label_row[i]) if i < len(label_row) else f"col{i}"
+              for i in range(5, 11)]
+    industries: dict[str, dict] = {}
+    for grid in sheets.values():
+        for r in grid:
+            if len(r) < 11:
+                continue
+            code = r[2].strip()
+            if not (code.isdigit() and len(code) == 3):
+                continue
+            industries[code] = {
+                "code": code,
+                "name": r[3].strip(),
+                "sales": [_num(r[i]) for i in range(5, 11)],
+            }
+    return {"months": months, "industries": industries}
 
 
-def _guard_year(parsed: dict, year: int) -> None:
-    """The silent-fallback trap: ask i0509 for 114 and you get 111's file back,
-    HTTP 200, bytes identical to the real 111 file. The ym parameter cannot be
-    trusted — only the periods inside the body can."""
-    want = f"{year}年"
-    if not any(p.startswith(want) for p, _, _ in parsed["rows"]):
-        have = sorted({p.split(" ")[0] for p, _, _ in parsed["rows"]})
-        raise FetchError(
-            f"asked for 民國 {year} 年 but the file contains {have} — "
-            "web02 silently falls back to the newest year its funid covers; "
-            "the requested year is probably not published yet"
-        )
-
-
-def _match(parsed: dict, keyword: str) -> list[str]:
-    """Digit keywords match the 行業 code exactly; text matches the name as a
-    substring. Never sum matches — the file holds aggregates and their
-    sub-industries in one column (58 contains 581 and 582)."""
-    names = []
-    for _, industry, _ in parsed["rows"]:
-        if industry not in names:
-            names.append(industry)
+def _match_industry(parsed: dict, keyword: str) -> list[str]:
+    """Digit keyword = exact 3-digit code; text = substring on name."""
+    inds = parsed["industries"]
     if keyword.isdigit():
-        hits = [n for n in names if (_CODE.match(n) or [""])[0].rstrip(".") == keyword]
+        hits = [c for c in inds if c == keyword]
     else:
-        hits = [n for n in names if keyword in n]
+        hits = [c for c, d in inds.items() if keyword in d["name"]]
     if not hits:
         raise SystemExit(f"找不到行業 {keyword!r}。用 --list {keyword!r} 或 --list 看全部。")
     return hits
 
 
-def _latest_year() -> int:
-    roc = datetime.date.today().year - 1911
-    for y in (roc, roc - 1):
+def _extend_series(code: str, latest_ym: int, months: int) -> list[tuple[str, float | None]]:
+    """Walk back through monthly reports, taking each report's newest month,
+    until `months` distinct months are collected."""
+    seen: dict[str, float | None] = {}
+    ym = latest_ym
+    guard = 0
+    while len(seen) < months and guard < months + 6:
+        guard += 1
         try:
-            parsed = _parse(_fetch_year(y))
-            _guard_year(parsed, y)
-            return y
+            parsed = _parse_industry(_fetch_report(ym, T_INDUSTRY))
         except FetchError:
+            ym = _prev_ym(ym)
             continue
-    raise SystemExit("最近兩個年度都抓不到 — web02 可能整站故障，稍後重試。")
+        ind = parsed["industries"].get(code)
+        if ind:
+            for mlabel, val in zip(parsed["months"], ind["sales"]):
+                seen.setdefault(mlabel, val)
+        ym = _prev_ym(ym)
+    return sorted(seen.items())[-months:]
 
 
-def _fmt(v: int | None) -> str:
-    return "—" if v is None else f"{v / 1e5:,.2f}"  # 千元 → 億元
+def _fmt(v: float | None) -> str:
+    return "—" if v is None else f"{v / 100:,.2f}"  # 百萬元 -> 億元
 
 
 def cmd_list(keyword: str | None) -> None:
-    year = _latest_year()
-    parsed = _parse(_fetch_year(year))
-    seen = []
-    for _, industry, _ in parsed["rows"]:
-        if industry not in seen and (not keyword or keyword in industry):
-            seen.append(industry)
-    for n in seen:
-        print(f"  {n}")
-    print(f"\n  {len(seen)} 個行業 (民國 {year} 年檔, 稅務行業分類)")
+    ym = _latest_ym(T_INDUSTRY)
+    parsed = _parse_industry(_fetch_report(ym, T_INDUSTRY))
+    hits = [(c, d["name"]) for c, d in parsed["industries"].items()
+            if not keyword or keyword in d["name"] or keyword == c]
+    for code, name in hits:
+        print(f"  {code}  {name}")
+    print(f"\n  {len(hits)} 個 3 碼行業 (民國 {ym // 100} 年 {ym % 100} 月 月報, 表3-9)")
 
 
-def cmd_industry(keyword: str, history: int, county: bool, as_json: bool) -> None:
-    year = _latest_year()
-    parsed = _parse(_fetch_year(year))
-    _guard_year(parsed, year)
-    hits = _match(parsed, keyword)
+def cmd_industry(keyword: str, history: int, as_json: bool) -> None:
+    ym = _latest_ym(T_INDUSTRY)
+    parsed = _parse_industry(_fetch_report(ym, T_INDUSTRY))
+    hits = _match_industry(parsed, keyword)
 
-    out = {"unit": "千元", "source": "MOF 財政統計資料庫 營業稅銷售額 (含未上市/SME)",
-           "industries": {}}
-
-    for name in hits:
-        # annual rows ("114年") for closed years; the running year only has the
-        # cumulative row ("115年 (1~4月)") — label it as such, never annualise.
-        series = []
-        for y in range(year, year - max(history, 1), -1):
-            p = parsed if y == year else _parse(_fetch_year(y))
-            if y != year:
-                _guard_year(p, y)
-            for period, industry, vals in p["rows"]:
-                if industry == name and (period == f"{y}年" or period.startswith(f"{y}年 (")):
-                    series.append({"period": period, "national": vals[0]})
-        out["industries"][name] = {"series": series}
-
-        if county:
-            for period, industry, vals in reversed(parsed["rows"]):
-                if industry == name and (period == f"{year}年" or period.startswith(f"{year}年 (")):
-                    pairs = sorted(
-                        (c, v) for c, v in zip(parsed["header"][1:], vals[1:]) if v is not None
-                    )
-                    pairs.sort(key=lambda x: -x[1])
-                    out["industries"][name]["county"] = {"period": period, "values": pairs}
-                    break
-
+    out = {"unit": "百萬元", "source": "MOF 財政統計月報 表3-9 營業稅銷售額 (含未上市/SME)",
+           "granularity": "3碼行業 × 月, 全國", "industries": {}}
+    for code in hits:
+        name = parsed["industries"][code]["name"]
+        series = _extend_series(code, ym, max(history, 6))
+        out["industries"][code] = {"name": name,
+                                    "series": [{"month": m, "sales": v} for m, v in series]}
     if as_json:
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return
-
-    for name, data in out["industries"].items():
-        print(f"{name}  — 營業稅銷售額, 全國 (億元)")
-        for row in data["series"]:
-            print(f"  {row['period']:<14}{_fmt(row['national']):>14}")
-        if "county" in data:
-            c = data["county"]
-            print(f"\n  縣市別 ({c['period']}, 億元):")
-            for county_name, v in c["values"]:
-                print(f"    {county_name:<8}{_fmt(v):>12}")
+    for code, d in out["industries"].items():
+        print(f"{code} {d['name']}  — 營業稅銷售額, 全國 (億元)")
+        for row in d["series"]:
+            print(f"  {row['month']:<10}{_fmt(row['sales']):>14}")
         print()
-    print("  口徑: 營業稅銷售額, 稅籍行業別自行申報, 含中小企業。")
-    print("  注意: 營業稅法第8條 — 雜誌自售出版品與廣告收入免稅, 58x 出版業數字結構性低估。")
-    print("        (D)=保密隱匿。雙月申報, 單數月偏小 — 用年值或累計值。")
+    print("  口徑: 營業稅銷售額, 稅籍行業別自行申報, 含中小企業。單位百萬元, 顯示為億元。")
+    print("  注意: 營業稅法第8條 — 雜誌自售出版品與廣告收入免稅, 58x 出版業結構性低估。")
+    print("        雙月申報, 單月值偏小 — 讀趨勢而非單月。3碼×縣市 需舊 sys=220 (已故障)。")
+
+
+# --- 表3-11 : major-category × 22 counties × month -------------------------
+
+def _parse_county(body: bytes) -> dict:
+    """-> {month, categories: [names], counties: {name: {cat: value}}}.
+
+    Row layout: a header row starting with 地區別 lists the major categories
+    (col 1 = 總計, col 2.. = categories); 總計 and each county follow.
+    """
+    def _squash(s: str) -> str:
+        return (s or "").replace("　", "").replace("\n", "").replace(" ", "").strip()
+
+    sheets = read_xlsx(body)
+    grid = next(iter(sheets.values()))
+    hdr_i = next((i for i, r in enumerate(grid)
+                  if r and _squash(r[0]) == "地區別"), None)
+    if hdr_i is None:
+        raise FetchError("表3-11: 找不到地區別表頭列")
+    hdr = grid[hdr_i]
+    cats = [_squash(c) for c in hdr[1:]]
+    month = ""
+    for r in grid[:hdr_i]:
+        for c in r:
+            if _MONTH_RE.search(c or ""):
+                month = _norm_month(c)
+                break
+        if month:
+            break
+    counties: dict[str, dict] = {}
+    for r in grid[hdr_i + 1:]:
+        if not r or not r[0].strip():
+            continue
+        cname = r[0].strip().replace("　", "")
+        vals = {cats[j]: _num(r[j + 1]) for j in range(len(cats)) if j + 1 < len(r)}
+        if any(v is not None for v in vals.values()):
+            counties[cname] = vals
+    return {"month": month, "categories": cats, "counties": counties}
+
+
+def cmd_county(keyword: str | None, as_json: bool) -> None:
+    ym = _latest_ym(T_COUNTY)
+    parsed = _parse_county(_fetch_report(ym, T_COUNTY))
+    cats = parsed["categories"]
+    if keyword:
+        matches = [c for c in cats if keyword in c or keyword == c]
+        if not matches:
+            raise SystemExit(f"找不到大類 {keyword!r}。可用: {'、'.join(c for c in cats if c)}")
+        cat = matches[0]
+    else:
+        cat = cats[0]  # 總計
+
+    rows = sorted(
+        ((cty, v[cat]) for cty, v in parsed["counties"].items()
+         if cty != "總計" and v.get(cat) is not None),
+        key=lambda x: -x[1],
+    )
+    out = {"unit": "百萬元", "source": "MOF 財政統計月報 表3-11 營業稅銷售額 × 縣市",
+           "month": parsed["month"], "category": cat,
+           "counties": [{"county": c, "sales": v} for c, v in rows]}
+    if as_json:
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return
+    print(f"{cat} — 各縣市營業稅銷售額 ({parsed['month']}, 億元)")
+    for c, v in rows:
+        print(f"  {c:<8}{_fmt(v):>12}")
+    print(f"\n  {len(rows)} 縣市。單位百萬元顯示為億元。大類 × 縣市 (非 3 碼)。")
+    print(f"  可用大類: {'、'.join(c for c in cats if c and c != '總計')}")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--industry", metavar="碼或名稱", help="數字=行業碼精確匹配, 文字=名稱子串")
-    g.add_argument("--list", nargs="?", const="", metavar="關鍵字", help="列出行業名稱")
-    ap.add_argument("--history", type=int, default=2, metavar="N", help="回溯 N 年 (default 2)")
-    ap.add_argument("--county", action="store_true", help="最新期間的縣市別拆分")
+    g.add_argument("--industry", metavar="碼或名稱", help="表3-9: 數字=3碼精確, 文字=名稱子串, 全國月序列")
+    g.add_argument("--county", nargs="?", const="", metavar="大類", help="表3-11: 一個大類的各縣市分布")
+    g.add_argument("--list", nargs="?", const="", metavar="關鍵字", help="列出 3 碼行業名稱")
+    ap.add_argument("--history", type=int, default=6, metavar="N", help="回溯 N 個月 (default 6)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
 
     if a.list is not None:
         cmd_list(a.list or None)
+    elif a.county is not None:
+        cmd_county(a.county or None, a.json)
     else:
-        cmd_industry(a.industry, a.history, a.county, a.json)
+        cmd_industry(a.industry, a.history, a.json)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,28 @@ Real numbers for Taiwan business cases, from sources that are free, keyless and
 verified working. Every endpoint here was called for real; the ones that look
 plausible but are broken are listed at the bottom so you don't retry them.
 
+## Two modes: quick data-integration vs full analysis
+
+**Quick mode (資料整合問答) — the default.** When the ask is a *value*, a
+*combined table*, or "where does X come from / can I get it", answer straight
+from this skill's scripts and reference indexes. Do NOT spin up a case study.
+
+- a number or series → run the matching script (`ndc_signal.py`, `household.py`,
+  `mof_industry.py`, `dgbas_macro.py`, `moea_orders.py`, `twse_revenue.py`)
+- "is there data on X / where" → `references/datasets.md` (breadth: agency → datasets)
+- "what columns / how do I pull X" → `references/schemas.md` (depth: fields, units, traps)
+- integrate several sources → run each script, join, and state the period/unit
+  mismatches explicitly
+
+This path is seconds to a few minutes and never fans out to sub-agents. Caching
+(`tw_cache.py`) makes repeat pulls near-instant. **When someone asks a
+data-integration question, stay here — don't escalate.**
+
+**Full analysis.** When the ask is a *recommendation* (enter or not, invest or
+not, how big, who wins), that's `biz-case-workflow` — hypothesis-driven,
+20+ agents, tens of minutes. The test: if the answer is a value or an integrated
+table → quick mode; if the answer is a *choice* → full analysis.
+
 ## Start here: why this exists
 
 **Taiwan is missing from the international databases.** It is not a World Bank
@@ -120,20 +142,28 @@ a series rather than guessing its name.
 ### 營業稅銷售額按行業別 — the SME-inclusive read (`scripts/mof_industry.py`)
 
 The one series that sees what TWSE cannot: every VAT-registered business,
-including the SMEs and services that make up most of Taiwan's economy. Monthly,
-by 22 counties, down to 3-digit 稅務行業小類, 2018→.
+including the SMEs and services that make up most of Taiwan's economy.
 
 ```bash
 python3 scripts/mof_industry.py --list 出版          # find the industry name
-python3 scripts/mof_industry.py --industry 581       # national sales by period
-python3 scripts/mof_industry.py --industry 581 --history 5
-python3 scripts/mof_industry.py --industry 581 --county
+python3 scripts/mof_industry.py --industry 581       # national 3-digit monthly series
+python3 scripts/mof_industry.py --industry 581 --history 12
+python3 scripts/mof_industry.py --county 批發        # a major-category across 22 counties
 ```
 
 Digit keywords match the industry code exactly; text matches names as a
 substring — and matches are never summed, because the file holds aggregates and
 their children in one column (58 contains 581 and 582), the same trap as MOEA
 sectors.
+
+**Source note (2026-07):** the old web02 sys=220 cube (3-digit × county in one
+cell) is down — its report engine hangs while the host stays up. This now reads
+the 財政統計月報 static Excel on service.mof.gov.tw instead, which splits that cube
+into two projections: `--industry` gives 3-digit × month **national** (表3-9),
+`--county` gives major-category × 22 counties × month (表3-11). 3-digit × county
+in one cell is not available from any live free source until sys=220 revives — use
+national 3-digit or county major-category and say which. Unit is 百萬元, coverage
+112年 (2023) onward. Full detail + the outage record in `references/endpoints.md`.
 
 **Use this when the four fast reads are blind** — media, education, professional
 services, any fragmented consumer category. A worked contrast: `--tam 休閒`
@@ -144,6 +174,57 @@ gives a NT$5,400億 bucket, while `--industry 581` shows the entire news/magazin
 營業稅法第8條 exempts magazines' own-publication sales and ad revenue, so 58x
 publishing is structurally understated; VAT files bimonthly (odd months are
 tiny — use annual or cumulative rows).
+
+### 綜合所得稅 — purchasing power by county, tier and village (`scripts/income_tax.py`)
+
+The whole filing population, not a survey sample — a fuller income map than 家庭收支
+調查, and the backbone of purchasing-power tiering.
+
+```bash
+python3 scripts/income_tax.py --county            # 各縣市: 戶數/總所得/人均/有效稅率
+python3 scripts/income_tax.py --structure         # 薪資 vs 股利 share, all counties
+python3 scripts/income_tax.py --structure 臺北市   # full income composition for one county
+python3 scripts/income_tax.py --village 新竹市      # village-level mean/median income
+```
+
+`--county` ranks per-household income (新竹市 164萬/戶 tops 臺北 149萬 — 竹科);
+`--structure` exposes salary-vs-capital mix (臺北 股利占比 29.9% — the most capital
+income, high earners with low spend propensity); `--village` is the finest income
+geography Taiwan publishes (482 里 in 臺北). Amounts 千元, shown as 億 / 萬元/戶.
+The filing unit is a 納稅單位, not a 家庭收支 household; stats lag ~3 years; 加計股利
+新口徑 is 107年 onward. Rollup rows (合計/其他) are filtered out.
+
+### 教育程度 — purchasing-power proxy to the village (`scripts/education.py`)
+
+Educational attainment is the strongest free proxy for spending power, and 戶政司
+ODRP020 publishes it by village (7,748 rows, 4 pages).
+
+```bash
+python3 scripts/education.py --county          # 各縣市 大專以上/研究所 占比, ranked
+python3 scripts/education.py --district 臺北市   # by 鄉鎮市區
+python3 scripts/education.py --village 新竹市     # by 村里, ranked
+```
+
+`--county` ranks 大專以上 share (臺北 57.3%, 新竹市 研究所 14.2% — 竹科). Its real
+power is the cross-check with income: 新竹市東區關新里 tops both 研究所占比 (42.8%)
+and per-household income (460萬) — two independent registers (戶政 vs 財稅) agreeing
+cell-for-cell. Pairs with `income_tax.py --village` on the same 區/里 for an
+education × income map. Whole registered population; 大專以上 = 專科+大學+研究所 畢業.
+
+### 年齡結構 — the demographic axis (`scripts/population.py`)
+
+Age structure decides which categories a place buys. NDC 6327 gives three-band
+age shares + dependency ratio by county (and indicator towns), ready-made.
+
+```bash
+python3 scripts/population.py --county    # 三段年齡 / 老化指數 / 扶養比, ranked
+```
+
+Ranks by 老化指數 (65+ ÷ 0-14). 內埔鄉 249, 臺北 178 (扶養比 52.4, highest). Young
+areas skew young-family / first-home spend; ageing areas skew healthcare / silver.
+Pairs with income_tax / education at the county level to add the demographic axis.
+Village/district age would need ODRP052 (2M rows) — this county cut answers most
+category questions without it.
 
 ### 外銷訂單、生產、零售 (`scripts/moea_orders.py`)
 
