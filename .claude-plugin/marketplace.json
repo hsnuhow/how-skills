@@ -26,7 +26,7 @@
       "name": "taiwan-biz-research",
       "source": "./plugins/taiwan-biz-research",
       "description": "Taiwan business-case research end to end: free government economic data (NDC cycle light, 家庭收支調查, listed-company revenue, 外銷訂單, SME-inclusive 營業稅 by industry), verified off-API sources (DMA ad market, Reuters DNR, TAICCA), a framework router that knows what Taiwan's data can't support, and a multi-agent workflow that adversarially verifies every claim.",
-      "version": "0.5.1"
+      "version": "0.5.2"
     }
   ]
 }
