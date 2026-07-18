@@ -84,11 +84,12 @@ Content-Type: application/json
 （`dgbas_macro.py`）、批發零售餐飲與生產外銷（`moea_orders.py`）、營業稅（`mof_industry.py`）、
 **綜合所得稅（`income_tax.py`：各縣市所得與稅率／所得結構薪資vs股利／村里級，全體申報戶）**、
 **教育程度（`education.py`：內政部 ODRP020，各縣市/鄉鎮區/村里 大專以上與研究所占比）**、
+**年齡結構（`population.py`：NDC 6327，各地區三段年齡/老化指數/扶養比）**、
 景氣燈號（`ndc_signal.py`）、上市月營收（`twse_revenue.py`）。
 
 **尚未包 wrapper 的高價值缺口**（值得接）：DGBAS 縣市別失業率（`mp0101a10`）與分行業受僱
-人數（`mp05003`）、內政部 ODRP052（人口×單一年齡×性別到村里，可算年齡結構）、
-勞動部 162820 勞保人數×行業×地區。
+人數（`mp05003`）、勞動部 162820 勞保人數×行業×地區、NCCC 信用卡消費（有 schema 無 wrapper）。
+（村里級年齡結構在 ODRP052 但 206 萬筆，`population.py` 用 NDC 6327 縣市級替代。）
 
 ## 卡點（誠實標注）
 
