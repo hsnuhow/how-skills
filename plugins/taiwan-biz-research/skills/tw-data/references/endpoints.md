@@ -6,9 +6,10 @@ otherwise use `twdata/_fetch.py` directly — it absorbs the pitfalls.
 
 **This file answers "what exists, where, and how it breaks." For the exact
 columns — real headers, units, sample rows, verified latest period — see
-[`schemas.md`](schemas.md)**, a live-fetch sweep of every source below
-(2026-07-18). Read the target's schema section before writing a parser; several
-entries here were corrected by that sweep.
+[`schemas.md`](schemas.md)**, the index to a per-source schema catalogue in
+`schemas/` (live-fetch sweep, 2026-07-18). Open only the one file you need;
+the set totals ~190 KB. Read the target's schema before writing a parser —
+several entries below were corrected by that sweep.
 
 ## Wrapped
 
