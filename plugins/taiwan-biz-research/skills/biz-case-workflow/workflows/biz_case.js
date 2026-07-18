@@ -3,6 +3,7 @@ export const meta = {
   description: 'Hypothesis-driven Taiwan business case: frame mutually exclusive strategic options, reverse-engineer what-would-have-to-be-true conditions, surface key debates with skeptic-designed tests, run an iterative lazy-man evidence loop, build a driver-tree market model with analog-market parameterization, profile competitors symmetrically, then choose the option with the fewest unresolved barriers',
   whenToUse: 'A Taiwan market-entry, sizing, competitor, investment or timing question where the answer must be a defensible strategic choice among options, not a single verified fact',
   phases: [
+    { title: 'Situation', detail: 'market & consumer foundation: definition, size, segments, behavior, unmet needs, trends' },
     { title: 'Frame', detail: 'turn the question into 2-4 mutually exclusive options, each a coherent winning story' },
     { title: 'Conditions', detail: 'per option: what would have to be true, across industry / customer / position / competition' },
     { title: 'Debates', detail: 'rank conditions by confidence; the weakest become key debates; skeptics design the tests' },
@@ -80,6 +81,71 @@ Standing rules — violating these makes the output worthless:
 - Always run --sectors before --sector; the names are not what you would guess.
 `.trim()
 
+// ── Situation ────────────────────────────────────────────────────────────────
+// The market-and-consumer foundation every consulting report lays down BEFORE
+// strategic options: a funnel from context → money → people → gaps → timing.
+// This is what option framing feeds on, and what post-run Q&A draws from.
+phase('Situation')
+
+const SITUATION_SCHEMA = {
+  type: 'object',
+  required: ['market_definition', 'size_growth', 'segments', 'behavior', 'trends', 'untestable'],
+  properties: {
+    market_definition: { type: 'string', description: 'What is in/out of the category, adjacent substitutes, unit of analysis. Sets the denominator for every later %' },
+    macro_context: { type: 'string', description: 'Income/demographic structure, cycle position, enabling-infrastructure penetration — is growth structural or cyclical?' },
+    size_growth: { type: 'string', description: 'Current size with an explicit build (top-down cross-checked bottom-up; disclose divergence), historic trajectory, forecast drivers. Ranges for forecasts, points for history.' },
+    value_chain: { type: 'string', description: 'Where revenue vs profit sits along the chain; who captures it. Revenue pools ≠ profit pools.' },
+    segments: {
+      type: 'array',
+      description: 'Quantified consumer segments — income×geography×age is the free-data workhorse; behavioral (payer/free, heavy/light) where TAICCA/DNR covers it. NO marketing personas: every segment = name + size + spend + 2-3 distinguishing behaviors + so_what.',
+      items: {
+        type: 'object', required: ['name', 'size_basis', 'so_what'],
+        properties: {
+          name: { type: 'string' }, size_basis: { type: 'string', description: 'Size + the series it comes from, with period' },
+          behaviors: { type: 'string' }, so_what: { type: 'string', description: 'Linkage grammar: [quantified behavior]+[structural reason]→[opportunity/threat]' },
+        },
+      },
+    },
+    behavior: { type: 'string', description: 'Media/channel behavior, payment behavior, adoption — from DNR, TAICCA, household data. Revealed preference over stated.' },
+    wtp: { type: 'string', description: 'Willingness-to-pay evidence: payment rates, spend tiers, premium shifts — directional language, never invented elasticities' },
+    unmet_needs: { type: 'string', description: 'Demand-side wants minus supply-side offers. Label hypotheses as hypotheses — free data cannot do attitudinal segmentation.' },
+    trends: { type: 'string', description: 'Discontinuities in motion with dates: platform shifts, cohort turnover, regulation. Time-stamps the opportunity.' },
+    untestable: { type: 'array', items: { type: 'string' }, description: 'What this analysis structurally cannot claim with free data (price-point WTP, brand switching, attitudinal segments, causal why)' },
+  },
+}
+
+const situation = await agent(`${CONTEXT}
+
+Lay down the MARKET AND CONSUMER FOUNDATION for this case — the situation
+assessment that precedes any strategic option. Work the funnel in order, each
+subsection earning the right to the next: definition → macro context → size &
+growth → value chain/profit pool → segments → behavior → willingness to pay →
+unmet needs → trends.
+
+Pull real data as you go: household.py (--mix --quintile --spend --tam) for
+spend by category/county/quintile, dgbas_macro.py for income/CPI context,
+mof_industry.py for the industry's own trajectory, ndc_signal.py for cycle
+position, and external-sources.md retrievals (DNR media behavior, TAICCA
+payment rates, DMA) plus WebSearch for what those miss. Where Taiwan has no
+number, bound it with a NAMED analog market (JP/KR/HK/SG) and label it analog.
+
+Discipline:
+- Demand claims cite consumer data; supply claims cite company/industry data.
+  Never mix evidence types inside one claim.
+- Every segment and every behavioral finding ends with a so-what in the linkage
+  grammar: [quantified behavior] + [structural reason] → [opportunity/threat].
+  A consumer fact no later section will consume does not belong here.
+- Directional language for anything motivational; free data observes WHAT
+  people spend, not WHY. What cannot be claimed goes in untestable — that
+  declaration is a rigor feature, not a weakness.
+- 家庭收支調查 switched to COICOP 2018 categories in the 113年/2024 edition —
+  flag the classification break when trending across it.`,
+  { label: 'situation', phase: 'Situation', schema: SITUATION_SCHEMA })
+
+const SITUATION_BRIEF = situation
+  ? `\n\nMARKET & CONSUMER FOUNDATION (established in the Situation phase — build on it, do not re-derive):\n${JSON.stringify(situation, null, 2)}`
+  : ''
+
 // ── Frame ────────────────────────────────────────────────────────────────────
 // Martin/Lafley: until at least two mutually exclusive options are framed, the
 // choice cannot be made. The status quo is itself an option and faces the same
@@ -120,7 +186,7 @@ const FRAME_SCHEMA = {
   },
 }
 
-const frame = await agent(`${CONTEXT}
+const frame = await agent(`${CONTEXT}${SITUATION_BRIEF}
 
 Frame this question as a strategic CHOICE, per the Martin/Lafley discipline:
 
@@ -481,7 +547,7 @@ const COMP_SCHEMA = {
 }
 
 const [model, competitors] = await parallel([
-  () => agent(`${CONTEXT}
+  () => agent(`${CONTEXT}${SITUATION_BRIEF}
 
 Build the MARKET MODEL for the surviving options:
 
@@ -625,11 +691,16 @@ if (RUN_DIR) {
   reportPath = `${RUN_DIR}/report.html`
   const reportAgent = await agent(`${CONTEXT}
 
-Build the deliverable: ONE self-contained HTML report at ${reportPath} (use the
-Write tool). 正體中文. No external resources — no CDN, no webfonts, no <img>;
-system font stack and inline SVG only, so the file opens offline forever.
+You are the report writer. The deliverable is ONE self-contained HTML report at
+${reportPath} (use the Write tool) — and it must read as an ANALYST-GRADE
+ARTICLE in 正體中文, not a machine record. A strategy analyst at 天下 or
+McKinsey Greater China should read it as a colleague's work. No external
+resources — no CDN, no webfonts, no <img>; system font stack and inline SVG
+only, so the file opens offline forever.
 
-Raw material:
+Raw material (everything below is computed and verified — your job is the
+WRITING, not new analysis):
+- Situation (market & consumer foundation): ${JSON.stringify(situation)}
 - The decision: ${frame.decision}
 - Choice: ${JSON.stringify(choice)}
 - Options alive: ${JSON.stringify(alive)}
@@ -643,36 +714,69 @@ Raw material:
 - Critic's findings — fix what is fixable; what you cannot fix goes verbatim
   into a「已知限制」box. Hiding any of it is falsification:\n${critique}
 
-Structure (Pyramid Principle — the answer first, then the support):
-1. 行動摘要 first screen: the chosen option (or undecidable + cheapest decisive
-   action) as one large-type sentence; 3-4 stat tiles; bull/base/base scenario
-   strip; badge row (options alive/killed, debates, tests run, untestable count).
-2. 選項地圖: every option framed — the happy story, its conditions with
-   verdicts (pass/fail/untested/untestable color-coded), killed options shown
-   WITH their cause of death. The rejected-alternatives exhibit is a
-   credibility engine, give it space.
-3. 關鍵辯論紀錄: per debate — the question, bull at full strength, bear at
-   full strength, the skeptic's test (metric + threshold + why that bar), the
-   verdict with the actual numbers. This is the dialectic record.
-4. 市場模型: boundary, driver table (each with basis/analog), the two-ended
-   range as a chart, sensitivity table, top-down vs bottom-up reconciliation.
-5. 競爭者分析: the bespoke dimensions, symmetric player table, archetype +
-   binding constraint per player, share dynamics, blind spots.
-6. What you need to believe: the chosen option's surviving assumptions,
-   published so the reader can calibrate their own view.
-7. Signposts 監測計畫: indicator / threshold / which way it moves the decision.
-8. 方法論與證據附錄: one row per test — command, timestamp, source, key raw
-   output inlined (wrap long output in <details>). No file: links — evidence
-   travels inside this file. Close with: 所有來源免費、免金鑰、公開，重跑指令
-   即是驗證.
+HOW IT READS — the prose contract (violating this is the failure mode this
+rewrite exists to kill):
 
-Every section heading is an ACTION TITLE (a complete sentence stating the
-point); the titles alone, read in order, must reconstruct the argument. Every
-number carries 期間 and 來源 as text. Charts: inline SVG, line for series,
-horizontal bars for rankings; one accent color (#2563eb), red (#dc2626) only
-for negative/refuted; every datapoint gets an SVG <title>; mark data gaps
-visibly. <meta charset="utf-8">, responsive max-width ~960px, @media print
-rules, footer with generation date, plugin version, run directory.
+- 敘事，不是紀錄。Body = continuous prose paragraphs of 1-4 sentences.
+  Enumeration happens INSIDE prose (首先／其次／最後), not as bullet walls.
+  Single-sentence pivot paragraphs are the gear-shifts between arguments.
+  Tables and charts are EVIDENCE for claims the prose has already made —
+  never a substitute for the argument.
+- 開場用 SCR：先寫讀者已同意的情境（Situation），再寫打破它的複雜化
+  （Complication），問題自然浮現，然後管理思想（governing thought）以
+  單句段落落地。開頭前置一個 100-150 字的摘要 box（商周 convention）。
+- 段落解剖：主題句是一個「主張」不是「主題」（「競爭池薄而集中」，不是
+  「廣告市場分析」）；證據句帶成對數字（今昔對比、與基準比）；收尾句給
+  機制或含意——"so what" 落在段落最後一句。
+- 數字入句：每個數字要有影子——同位語換算（「NT$91億——約僅總量的14%」）、
+  基準（「高於／低於…的X%」）、或實體等價（天下式「相當於…」）。孤兒數字
+  （無比較、無換算）是機器味的第一來源。預測用區間，歷史用點值。
+- 展示分析模型的運作：每個分析段落先說用了什麼模型、為什麼——「以 TAM
+  driver tree 由下而上拆解…」「以『What would have to be true』檢驗此選項，
+  其成立需要三件事為真…」「對六家玩家套用同一組維度…」。框架是推理的
+  骨架，讀者必須看得到。
+- 語調不對稱：對過去平鋪直敘，對未來必加一至兩層 hedge（可能、我們估計、
+  尚待觀察）。雙重 hedge 的歷史句和裸奔的預測句都破壞可信度。
+- 殺選項要有尊嚴（MGI ceasing-arenas 四步）：(a) 有敬意的裁決（「此路徑
+  並非不可想像，但…」）；(b) 機制；(c) 量化降級（以數字對比呈現）；
+  (d) 復活條款（什麼會讓它重新可行）。PASS／FAIL 這類判決語彙禁止出現在
+  正文——它們只活在附錄的驗證表裡。
+- 中文文氣：短句以「、」串接；動詞優先於名詞化；「不是…而是…」做定義；
+  自創術語首次出現給一句定義、之後逐字重複使用（禁同義輪替）；禁直譯句式
+  （「作為…」開頭、連環「的」、每句同主詞「它」、被動堆疊）。小標是
+  迷你論點（「可競爭的廣告池只有名目市場的一成四」），不是主題名詞。
+- Exhibit 互動：正文先下結論並引用 1-2 個關鍵數字，圖表以句尾括號註記
+  （見圖二）帶出；絕不以「如下圖所示」開句。Exhibit 標題 = 一句完整的
+  takeaway（≤15字）。
+
+STRUCTURE (each section heading is a mini-thesis, and read in order the
+headings alone reconstruct the argument):
+
+1. 摘要 box + SCR 引言 + 管理思想。引言收尾用 MGI 的 epistemic contract:
+   一句話承認前瞻的不確定，並預告「What you need to believe」的透明化。
+2. 市場與消費者：從 Situation 材料寫成敘事——市場定義與規模建構、消費者
+   是誰（量化分群）、行為與付費（DNR/TAICCA/家庭收支的數字織進句子）、
+   未滿足需求（假設要標明）、趨勢與時機。漏斗順序：情境→錢→人→缺口→時機。
+3. 策略選項與其命運：每個選項作為一個「贏的故事」以段落敘述，被殺的用
+   四步殺法寫，倖存的說明還站著的理由。Framing 時即排除的選項一併交代。
+4. 關鍵辯論：每個 debate 寫成一段完整論證——問題、兩造最強版本、檢驗的
+   設計與門檻（為什麼是這個門檻）、證據怎麼裁決、對建議的影響。
+5. 市場模型：先講模型結構（driver tree 的邏輯），再給範圍與敏感度，
+   top-down 與 bottom-up 的對帳作為論證高潮（收斂是信心，分歧是發現）。
+6. 競爭格局:維度的選擇理由、玩家的原型敘事（每家一小段，不是表格切片）、
+   份額動態、盲區。對稱性本身要點明——同一把尺量所有人。
+7. 建議與情境：選擇的理由（anticlimactic——未解障礙最少者勝）、
+   bull/base/bear 作為關鍵辯論的兩種解法、最便宜的裁決行動。
+8. What you need to believe ＋ Signposts 監測計畫：假設的透明化與
+   「這份報告在 day one 之後仍有用」的觀測條件。
+9. 方法論與證據附錄：這裡才允許驗證表（含 verdict）、指令、原始輸出
+   （<details> 折疊）。收尾：所有來源免費、免金鑰、公開，重跑指令即是驗證。
+
+Charts: inline SVG, line for series, horizontal bars for rankings; one accent
+color (#2563eb), red (#dc2626) only for negative/refuted; every datapoint gets
+an SVG <title>; mark data gaps visibly. <meta charset="utf-8">, responsive
+max-width ~960px, @media print rules, footer with generation date, plugin
+version, run directory.
 
 Your final message: confirm the file was written and list any critic points
 you could not fix.`,
@@ -687,6 +791,7 @@ return {
   report: reportPath,
   report_status: reportStatus,
   decision: frame.decision,
+  situation,
   options: { framed: options, excluded: frame.excluded_options || [], killed: Object.entries(deadOptions).map(([id, cause]) => ({ id, cause })), alive: alive.map(o => o.id) },
   debates,
   conditions: allConditions.map(c => ({ ...c, verdict: conditionVerdicts[c.id] || 'untested' })),

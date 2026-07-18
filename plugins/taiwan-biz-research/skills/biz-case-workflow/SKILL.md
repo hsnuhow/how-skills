@@ -136,7 +136,8 @@ strategic-choice structuring × McKinsey driver models × Goldman key debates):
 
 | Phase | What happens |
 |---|---|
-| **Frame** | 2-4 MUTUALLY EXCLUSIVE strategic options (status quo included), each a coherent "happy story" of how it wins. No critique yet — skepticism becomes conditions |
+| **Situation** | The market-and-consumer foundation laid down BEFORE any option: market definition, size with an explicit build, quantified consumer segments (income×geo×age from 家庭收支; behavioral from TAICCA/DNR), media/payment behavior, unmet needs (hypotheses labeled), trends. Every finding ends in the linkage grammar: [quantified behavior]+[structural reason]→[opportunity/threat] |
+| **Frame** | 2-4 MUTUALLY EXCLUSIVE strategic options (status quo included), each a coherent "happy story" of how it wins, grounded in the Situation. No critique yet — skepticism becomes conditions |
 | **Conditions** | Per option: what would have to be TRUE (industry / customer / position / competition), weeded to 3-6 binding conditions, each scored with pre-test confidence |
 | **Debates** | The lowest-confidence conditions become 2-4 key debates — bull and bear both at full strength. A skeptic agent designs each test: metric, pass threshold at the highest standard of proof, runnable data plan |
 | **Test** | Lazy-man loop (≤3 rounds): least-believed conditions first, cheap kills first. A failed must-have condition kills its option — no further spend on it. Insufficient evidence triggers an EXPANDED search (analog markets, web) next round |
@@ -145,10 +146,41 @@ strategic-choice structuring × McKinsey driver models × Goldman key debates):
 | **Choose** | Anticlimactic: fewest unresolved barriers wins (or "undecidable" + the cheapest decisive action). Bull/base/bear = the debates resolving each way. Then a completeness critic attacks what is missing |
 | **Report** | Self-contained HTML: options map with killed options and their cause of death, the debates record, model, comp table, what-you-need-to-believe, signposts monitoring plan, inlined evidence appendix (skipped if no `runDir`) |
 
-It returns `{report, report_status, decision, options: {framed, excluded,
-killed, alive}, debates, conditions, test_results, model, competitors, choice,
-critique}`. `report_status` is `written` / `failed` / `skipped` — on `failed`,
-rebuild `report.html` with `build_report.py` (see "Deliver it" step 3).
+It returns `{report, report_status, decision, situation, options: {framed,
+excluded, killed, alive}, debates, conditions, test_results, model,
+competitors, choice, critique}`. `report_status` is `written` / `failed` /
+`skipped` — on `failed`, rebuild `report.html` with `build_report.py` (see
+"Deliver it" step 3).
+
+The report is written as an ANALYST ARTICLE, not a data record: SCR opening
+with a 摘要 box, continuous prose with claim-first topic sentences and paired
+numbers, frameworks named as they are applied ("以 TAM driver tree 拆解…"),
+killed options delivered with the four-move dignity template (verdict /
+mechanism / quantified downgrade / resurrection clause), and verdict-speak
+(PASS/FAIL) confined to the appendix. The full style contract lives in the
+report agent's prompt.
+
+## After the run: the case file and Q&A mode
+
+A completed run leaves a CASE FILE: the result JSON (persisted at the task
+output path) plus `runDir/evidence/*.md`. **Follow-up questions are answered
+from the case file FIRST, new data second.** The protocol:
+
+1. **Consult the case file**: the result JSON's `situation`, `test_results`
+   findings, `model`, `competitors`, and the evidence files already carry
+   sourced, period-stamped numbers. If the answer is there, answer from it and
+   cite the original pull (source + period) — do not re-fetch what is already
+   verified on disk.
+2. **Say which it is**: answers from the case file are labeled as such
+   (「根據本案已查證的資料…」); the reader must know whether they are getting
+   the audited evidence or something new.
+3. **Only then fetch new data** — when the case file genuinely cannot answer.
+   Run the same discipline as the workflow (tw-data first, external-sources
+   retrievals, then web; FetchError is a finding). Append what you fetched as
+   a new `evidence/qa-<slug>.md` so the case file grows instead of forking.
+4. **Never re-run the workflow to answer a question.** A full run is for a new
+   decision, not a follow-up. If a follow-up reveals the case's framing was
+   wrong, say so and propose a re-scope — that is the user's call.
 
 Cost: expect roughly 25-45 agents and 2-4M tokens per run — two to three times
 the old verification pipeline. It buys a strategy machine instead of a
