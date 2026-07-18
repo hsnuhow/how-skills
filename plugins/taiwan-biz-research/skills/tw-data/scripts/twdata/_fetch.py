@@ -98,15 +98,29 @@ def _fetch_via_curl(url: str) -> bytes:
     return proc.stdout
 
 
-def fetch(url: str, *, min_bytes: int = 512, allow_html: bool = False) -> bytes:
+def fetch(url: str, *, min_bytes: int = 512, allow_html: bool = False,
+          use_cache: bool = True, freeze: bool = False, ttl: int | None = None) -> bytes:
     """GET a URL and return the body, or raise FetchError.
 
     min_bytes guards the header-only case: several endpoints serve a valid file
     containing nothing but column headers when the period isn't published yet
     (MOPS returns 916 bytes for an unpublished month). Size is the only signal
     that distinguishes it from a real response.
+
+    Caching (see `_cache.py`): a validated body is cached and reused. `freeze=True`
+    marks a closed-period payload (a past month's file) as permanent — reused with
+    no network and no expiry, and promotable into the repo's shared cache. Without
+    freeze, a cached body is reused only within `ttl` seconds (default 8h) so
+    current-period data still refreshes. `use_cache=False` bypasses both.
     """
     url = encode_url(url)
+
+    if use_cache:
+        from twdata import _cache
+        cached = _cache.get(url, ttl=_cache.DEFAULT_TTL if ttl is None else ttl)
+        if cached is not None and len(cached) >= min_bytes:
+            return cached
+
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
@@ -135,6 +149,10 @@ def fetch(url: str, *, min_bytes: int = 512, allow_html: bool = False) -> bytes:
             f"HTTP {status} but only {len(body)}B for {url} — "
             f"likely headers with no rows (period not published yet?)"
         )
+
+    if use_cache:
+        from twdata import _cache
+        _cache.put(url, body, freeze=freeze)
     return body
 
 

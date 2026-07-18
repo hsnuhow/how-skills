@@ -57,8 +57,11 @@ def _prev_ym(ym: int) -> int:
     return (y - 1) * 100 + 12 if m == 1 else ym - 1
 
 
-def _fetch_report(ym: int, tbl: str) -> bytes:
-    return fetch(BASE.format(ym=ym, tbl=tbl), min_bytes=8_000)
+def _fetch_report(ym: int, tbl: str, *, probe: bool = False) -> bytes:
+    # A published 月報 never changes, so freeze it (permanent cache). Probing for
+    # the latest period must NOT use the cache — it has to see newly published files.
+    return fetch(BASE.format(ym=ym, tbl=tbl), min_bytes=8_000,
+                 use_cache=not probe, freeze=not probe)
 
 
 def _latest_ym(tbl: str) -> int:
@@ -67,7 +70,7 @@ def _latest_ym(tbl: str) -> int:
     ym = (today.year - 1911) * 100 + today.month
     for _ in range(6):
         try:
-            _fetch_report(ym, tbl)
+            _fetch_report(ym, tbl, probe=True)
             return ym
         except FetchError:
             ym = _prev_ym(ym)
