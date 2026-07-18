@@ -184,3 +184,27 @@ how-skills/
 - `plugins/ponytail` 衍生自 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)（MIT）。
   本 build 移除其全部 hooks 並將主 skill 改為 explicit-invoke；
   詳細改動與致謝見 [plugins/ponytail/NOTICE.md](plugins/ponytail/NOTICE.md)。
+
+## Cloud / Cowork sessions (claude.ai/code)
+
+User-scope installs do **not** sync to cloud sessions — the cloud VM clones the
+repo fresh and only reads the repo's own `.claude/settings.json`. To make these
+plugins available in any repo's cloud/cowork sessions, commit this to that
+repo's `.claude/settings.json`:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "how-skills": {
+      "source": { "source": "github", "repo": "hsnuhow/how-skills" }
+    }
+  },
+  "enabledPlugins": {
+    "taiwan-biz-research@how-skills": true
+  }
+}
+```
+
+The session installs the plugin from GitHub at startup (needs network access).
+This repo carries the same file, so cloud sessions opened on it get the plugin
+automatically.

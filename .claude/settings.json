@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "how-skills": {
+      "source": {
+        "source": "github",
+        "repo": "hsnuhow/how-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "taiwan-biz-research@how-skills": true
+  }
+}
