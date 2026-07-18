@@ -9,6 +9,28 @@ Real numbers for Taiwan business cases, from sources that are free, keyless and
 verified working. Every endpoint here was called for real; the ones that look
 plausible but are broken are listed at the bottom so you don't retry them.
 
+## Two modes: quick data-integration vs full analysis
+
+**Quick mode (資料整合問答) — the default.** When the ask is a *value*, a
+*combined table*, or "where does X come from / can I get it", answer straight
+from this skill's scripts and reference indexes. Do NOT spin up a case study.
+
+- a number or series → run the matching script (`ndc_signal.py`, `household.py`,
+  `mof_industry.py`, `dgbas_macro.py`, `moea_orders.py`, `twse_revenue.py`)
+- "is there data on X / where" → `references/datasets.md` (breadth: agency → datasets)
+- "what columns / how do I pull X" → `references/schemas.md` (depth: fields, units, traps)
+- integrate several sources → run each script, join, and state the period/unit
+  mismatches explicitly
+
+This path is seconds to a few minutes and never fans out to sub-agents. Caching
+(`tw_cache.py`) makes repeat pulls near-instant. **When someone asks a
+data-integration question, stay here — don't escalate.**
+
+**Full analysis.** When the ask is a *recommendation* (enter or not, invest or
+not, how big, who wins), that's `biz-case-workflow` — hypothesis-driven,
+20+ agents, tens of minutes. The test: if the answer is a value or an integrated
+table → quick mode; if the answer is a *choice* → full analysis.
+
 ## Start here: why this exists
 
 **Taiwan is missing from the international databases.** It is not a World Bank
@@ -120,20 +142,28 @@ a series rather than guessing its name.
 ### 營業稅銷售額按行業別 — the SME-inclusive read (`scripts/mof_industry.py`)
 
 The one series that sees what TWSE cannot: every VAT-registered business,
-including the SMEs and services that make up most of Taiwan's economy. Monthly,
-by 22 counties, down to 3-digit 稅務行業小類, 2018→.
+including the SMEs and services that make up most of Taiwan's economy.
 
 ```bash
 python3 scripts/mof_industry.py --list 出版          # find the industry name
-python3 scripts/mof_industry.py --industry 581       # national sales by period
-python3 scripts/mof_industry.py --industry 581 --history 5
-python3 scripts/mof_industry.py --industry 581 --county
+python3 scripts/mof_industry.py --industry 581       # national 3-digit monthly series
+python3 scripts/mof_industry.py --industry 581 --history 12
+python3 scripts/mof_industry.py --county 批發        # a major-category across 22 counties
 ```
 
 Digit keywords match the industry code exactly; text matches names as a
 substring — and matches are never summed, because the file holds aggregates and
 their children in one column (58 contains 581 and 582), the same trap as MOEA
 sectors.
+
+**Source note (2026-07):** the old web02 sys=220 cube (3-digit × county in one
+cell) is down — its report engine hangs while the host stays up. This now reads
+the 財政統計月報 static Excel on service.mof.gov.tw instead, which splits that cube
+into two projections: `--industry` gives 3-digit × month **national** (表3-9),
+`--county` gives major-category × 22 counties × month (表3-11). 3-digit × county
+in one cell is not available from any live free source until sys=220 revives — use
+national 3-digit or county major-category and say which. Unit is 百萬元, coverage
+112年 (2023) onward. Full detail + the outage record in `references/endpoints.md`.
 
 **Use this when the four fast reads are blind** — media, education, professional
 services, any fragmented consumer category. A worked contrast: `--tam 休閒`
