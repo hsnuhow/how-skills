@@ -63,6 +63,30 @@ inline SVG charts, print-to-PDF ready. First screen is the action summary
 one chart each, the adversarial-verification record, untestable declarations,
 divergences and blind spots, and the methodology/evidence appendix.
 
+**First, check the report actually got written.** The report agent is the run's
+fragile last step — a mid-response API drop or a credit lapse leaves a 60-minute
+run with everything computed but no `report.html`. The return carries
+`report_status` (`written` / `failed` / `skipped`); confirm with `ls
+"$RUN_DIR/report.html"`. **If it's missing, do NOT re-run the workflow** — rebuild
+deterministically from the result JSON (no agent, no network, cannot fail the way
+the agent did):
+
+```bash
+# the harness already persisted the full result at the task-output path;
+# build_report.py accepts that wrapper or a raw result object
+python3 "$CLAUDE_PLUGIN_ROOT/skills/biz-case-workflow/workflows/build_report.py" \
+  --result <task-output.json or extracted result.json> \
+  --out "$RUN_DIR/report.html"
+```
+
+The rebuilt report renders every section (options map + killed causes, debates,
+model, competitor table, what-you-need-to-believe, scenarios, signposts, evidence
+appendix) as tables — the same numbers, self-contained, minus the SVG the agent
+would have drawn. It is the guaranteed-delivery floor; the agent's version is the
+nicer ceiling. (`resumeFromRunId` also works — 19 cached agents replay instantly
+and only the report re-runs — but it needs the same session and can hit the same
+API/credit wall; the deterministic rebuild cannot.)
+
 That file is the artifact; how you hand it over depends on the reader's surface.
 The channels are NOT equally reliable — this ladder is from hard experience:
 
@@ -121,8 +145,10 @@ strategic-choice structuring × McKinsey driver models × Goldman key debates):
 | **Choose** | Anticlimactic: fewest unresolved barriers wins (or "undecidable" + the cheapest decisive action). Bull/base/bear = the debates resolving each way. Then a completeness critic attacks what is missing |
 | **Report** | Self-contained HTML: options map with killed options and their cause of death, the debates record, model, comp table, what-you-need-to-believe, signposts monitoring plan, inlined evidence appendix (skipped if no `runDir`) |
 
-It returns `{report, decision, options: {framed, excluded, killed, alive},
-debates, conditions, test_results, model, competitors, choice, critique}`.
+It returns `{report, report_status, decision, options: {framed, excluded,
+killed, alive}, debates, conditions, test_results, model, competitors, choice,
+critique}`. `report_status` is `written` / `failed` / `skipped` — on `failed`,
+rebuild `report.html` with `build_report.py` (see "Deliver it" step 3).
 
 Cost: expect roughly 25-45 agents and 2-4M tokens per run — two to three times
 the old verification pipeline. It buys a strategy machine instead of a

@@ -614,11 +614,16 @@ If something is genuinely fine, say nothing about it. Short, prioritised list.`,
   { label: 'critic', phase: 'Choose' })
 
 // ── Report ───────────────────────────────────────────────────────────────────
+// The report agent is the fragile last step: one mid-response API drop or a
+// credit lapse and a full run has no report.html. report_status flags that so
+// the caller can rebuild deterministically from this return value with
+// workflows/build_report.py — no agent, no network. See the skill's "Deliver it".
 phase('Report')
 let reportPath = null
+let reportStatus = 'skipped'
 if (RUN_DIR) {
   reportPath = `${RUN_DIR}/report.html`
-  await agent(`${CONTEXT}
+  const reportAgent = await agent(`${CONTEXT}
 
 Build the deliverable: ONE self-contained HTML report at ${reportPath} (use the
 Write tool). 正體中文. No external resources — no CDN, no webfonts, no <img>;
@@ -672,12 +677,15 @@ rules, footer with generation date, plugin version, run directory.
 Your final message: confirm the file was written and list any critic points
 you could not fix.`,
     { label: 'report', phase: 'Report' })
+  reportStatus = reportAgent ? 'written' : 'failed'
+  if (!reportAgent) log('Report agent FAILED (API/credits). Rebuild deterministically: python3 build_report.py --result <this run\'s result JSON> --out ' + reportPath)
 } else {
   log('No runDir supplied — skipping evidence pack and HTML report; results return inline only')
 }
 
 return {
   report: reportPath,
+  report_status: reportStatus,
   decision: frame.decision,
   options: { framed: options, excluded: frame.excluded_options || [], killed: Object.entries(deadOptions).map(([id, cause]) => ({ id, cause })), alive: alive.map(o => o.id) },
   debates,
