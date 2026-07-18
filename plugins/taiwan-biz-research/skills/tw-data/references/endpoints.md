@@ -74,10 +74,23 @@ but these pre-generated files go deeper than the query system did.
 |---|---|---|---|
 | 失業率 | `11525/230038/mp0101a07.xml` | 630 | 1978→ |
 | 勞動力參與率 | `11525/230038/mp0101a06.xml` | 630 | 1978→ |
+| **縣市別失業率** | `11525/230038/mp0101a10.xml` | — | (313 KB) — county × month, verified 2026-07 |
 | 經常性薪資 | `11525/230037/mp05002.xml` | 604 | 1980→ |
 | 總薪資 | `11525/230037/mp05001.xml` | 604 | 1980→ |
+| **受僱員工人數 (分行業)** | `11525/230037/mp05003.xml` | — | (1.71 MB) — industry × month, verified 2026-07 |
 | GDP 季 | `11525/230514/na8101a1q.xml` | 7,830 | **1961Q1→** |
 | CPI | `11525/230555/pr0101a1m.xml` | 88,452 | 1981M01→ (15.7 MB — stream) |
+
+The 230037 and 230038 directories hold **more than the rows above** — a 2026-07
+sweep found 縣市別失業率 (`mp0101a10`) and 分行業受僱員工人數 (`mp05003`) sitting in
+the same two directories the skill already reads, plus 就業/失業/勞動力人數 by
+sex×age (`mp0101a01`–`a05`, `a08`, `a09`) and 已婚婦女勞參率 (`a11`). The
+**縣市別失業率** is the load-bearing add: it crosses against NCCC county spend and
+家庭收支 county data for regional consumer work. `mp05001`/`02`/`03` together ARE
+part of 受僱員工薪資與生產力統計 — the earlier "403, needs a fresh sweep" note was
+wrong for the statistic as a whole. Only **加班工時 (overtime hours)** genuinely
+isn't in this directory tree (mp05004–20, mp0502*, mp0601* all 404) — that one
+component still needs a source.
 
 Two incompatible schemas: GDP/CPI use SDMX-ish `<Obs><Item><TIME_PERIOD>`;
 人力/薪資 use flat `<DataCollection><失業率>`. Annual rows interleave with monthly
@@ -115,18 +128,39 @@ twice (`TYPE` = 原始值 / 年增率).
   for all 11 datasets: `/OAI/v2/api-docs`.
 - **`web02.mof.gov.tw/njswww/webMain.aspx?sys=220&…&funid=i0520&…&utf=1`** —
   the 財政統計資料庫 CSV export, monthly 107→, 3-digit 稅務行業小類 (581 新聞、
-  雜誌、期刊、書籍及其他出版業) × 22 counties, units 千元. **This is the only
-  free read on an industry's revenue that includes SMEs and services** — the
-  complement to TWSE's listed-only view. Wrapped: `mof_industry.py`.
-  Traps (all handled by the script): funid binds a classification revision to a
-  year span (i0509 = 107-111 / 8th revision, i0520 = 112-116 / 9th — J 大類 was
-  renamed across the seam, joins need mapping); **asking a funid for a year it
-  doesn't cover silently returns its newest year, HTTP 200, bytes identical to
-  the real file — validate the periods in the body, never trust `ym`**; `(D)` =
-  保密隱匿, `－` = none, negatives are real (銷售折讓); VAT files bimonthly so
-  odd months are tiny; `utf=1` required (BOM); host occasionally drops
-  connections — retry once. 營業稅法第8條 exempts magazines' own sales + ad
-  revenue, so 58x is structurally understated.
+  雜誌、期刊、書籍及其他出版業) × 22 counties, units 千元. **This is the only free
+  read on an industry's revenue at 3-digit × county granularity in one cube.**
+  Wrapped: `mof_industry.py`. Traps (all handled by the script): funid binds a
+  classification revision to a year span (i0509 = 107-111 / 8th revision,
+  i0520 = 112-116 / 9th — J 大類 was renamed across the seam, joins need mapping);
+  **asking a funid for a year it doesn't cover silently returns its newest year,
+  HTTP 200, bytes identical to the real file — validate the periods in the body,
+  never trust `ym`**; `(D)` = 保密隱匿, `－` = none, negatives are real (銷售折讓);
+  VAT files bimonthly so odd months are tiny; `utf=1` required (BOM). 營業稅法第8條
+  exempts magazines' own sales + ad revenue, so 58x is structurally understated.
+  - **⚠ OUTAGE (verified 2026-07-18): the `sys=220` report engine is down.**
+    Not the host — `sys=100/120/200/230/240` static pages answer in 50ms, but the
+    **entire `sys=210`/`sys=220` subsystem backend hangs** (app-pool/connection-pool
+    exhaustion, most likely): even the 72-byte empty `funid=defjsptgl` shell times
+    out when hung under `sys=220`, and shrinking the query on every axis (single
+    month, single industry, every `outmode`) changes nothing. 36+ attempts, curl
+    and headless Chrome alike. **Cheap liveness probe** (not a 100s real query):
+    `GET sys=220&funid=defjsptgl` — 72 bytes when the backend revives, timeout while
+    dead. Poll that; only run a real export once it returns.
+  - **✅ LIVE REPLACEMENT while `sys=220` is down** — the same statistics as static
+    Excel on a *different* host, `service.mof.gov.tw` (healthy, ~100ms):
+    `service.mof.gov.tw/public/Data/statistic/monthly/{YYYMM}/{表號}_{YYYMM}.{xlsx|xls|ods}`
+    (`.xlsx` from 112-, `.xls`/`.ods` for 107-111). **It splits the cube into two
+    projections rather than the full cross-tab:**
+    - `23090` 表3-9 — **3-digit industry × month, national** (231 小類 across 7
+      worksheets 表/表(續1..續6完); units 百萬元 — 1000× the web02 千元). Verified
+      107/01→115/05.
+    - `23110` 表3-11 — **major-category × 22 counties × month** (19 大類, 百萬元).
+    - The one thing neither projection gives is **3-digit × county in the same
+      cell** — that lived only in the dead `sys=220`. If the model needs a specific
+      county's specific 3-digit service industry, there is no free live source; use
+      the national 3-digit (表3-9) or the county major-category (表3-11) instead, and
+      say which. SEGIS `segis.moi.gov.tw` carries only 大類 × county, same limit.
 
 **MOL** — `apiservice.mol.gov.tw/OdService/rest/dataset` → 860 dataset ids;
 `/datastore/{id}` for data. `?modified=yyyy-MM-dd` for incremental sync.
@@ -188,15 +222,17 @@ converted before joining fbfh's 西元 8 碼.
 
 Not published as open data at all: **PPI/躉售物價** (retired).
 
-**加班工時 — the earlier "annual only" note was wrong and the source is still
-open.** Verified 2026-07: MOL's 860 datasets contain **no working-hours series at
-any frequency** (a full title sweep for 工時/時數/工作時間 returned 7 hits, all
-unrelated). The series belongs to DGBAS 受僱員工薪資與生產力統計 (monthly), which
-this sweep could not retrieve — `www.dgbas.gov.tw/public/data/open/...csv` is
-WAF-403, `winsta.dgbas.gov.tw/winsta/` 404s, and `nstatdb` returns the HTML query
-UI rather than data. It is a component of the NDC leading indicator, which is why
-`ndc_signal.py` shows it blank. **Needs a dedicated DGBAS sweep before anyone
-relies on it.**
+**加班工時 (overtime hours) — narrowed, not solved.** Verified 2026-07: MOL's 860
+datasets contain **no working-hours series at any frequency** (title sweep for
+工時/時數/工作時間 returned 7 hits, all unrelated). It belongs to DGBAS
+受僱員工薪資與生產力統計 — most of which IS reachable (`mp05001`/`02`/`03` in the
+230037 XML directory above, verified live), but the **hours** table specifically
+was not found: `mp05004`–`mp05020`, `mp0502*`, `mp0601*` all 404, and the CSV/query
+front doors (`www.dgbas.gov.tw/public/data/open/...csv` WAF-403,
+`winsta.dgbas.gov.tw/winsta/` 404, `nstatdb` returns the HTML query UI) don't serve
+it. It is a component of the NDC leading indicator, which is why `ndc_signal.py`
+shows it blank. **The remaining gap is the hours table's XML path** — the薪資 tables
+next to it were found, so it likely exists under a relfile id not yet enumerated.
 
 Decision-critical numbers that exist only outside open data — **台灣數位廣告市場量**
 (DMA annual PDF), **線上新聞/內容付費率** (Reuters DNR Taiwan page), **文化內容
