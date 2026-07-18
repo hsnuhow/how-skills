@@ -82,11 +82,11 @@ Content-Type: application/json
 
 **已接、有 script**（見 SKILL.md）：家庭收支調查（`household.py`）、CPI/GDP/薪資/失業
 （`dgbas_macro.py`）、批發零售餐飲與生產外銷（`moea_orders.py`）、營業稅（`mof_industry.py`）、
+**綜合所得稅（`income_tax.py`：各縣市所得與稅率／所得結構薪資vs股利／村里級，全體申報戶）**、
 景氣燈號（`ndc_signal.py`）、上市月營收（`twse_revenue.py`）。
 
-**本次新發現、尚未包 wrapper 的高價值缺口**（值得接）：綜合所得稅全系列（尤其村里級 103066
-與加計股利 144517-536）、DGBAS 縣市別失業率（`mp0101a10`）與分行業受僱人數（`mp05003`）、
-內政部 ODRP052/053（人口與教育到村里）、勞動部 162820 勞保人數×行業×地區。
+**尚未包 wrapper 的高價值缺口**（值得接）：DGBAS 縣市別失業率（`mp0101a10`）與分行業受僱
+人數（`mp05003`）、內政部 ODRP052/053（人口與教育到村里）、勞動部 162820 勞保人數×行業×地區。
 
 ## 卡點（誠實標注）
 

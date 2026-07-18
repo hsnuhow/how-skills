@@ -175,6 +175,25 @@ gives a NT$5,400億 bucket, while `--industry 581` shows the entire news/magazin
 publishing is structurally understated; VAT files bimonthly (odd months are
 tiny — use annual or cumulative rows).
 
+### 綜合所得稅 — purchasing power by county, tier and village (`scripts/income_tax.py`)
+
+The whole filing population, not a survey sample — a fuller income map than 家庭收支
+調查, and the backbone of purchasing-power tiering.
+
+```bash
+python3 scripts/income_tax.py --county            # 各縣市: 戶數/總所得/人均/有效稅率
+python3 scripts/income_tax.py --structure         # 薪資 vs 股利 share, all counties
+python3 scripts/income_tax.py --structure 臺北市   # full income composition for one county
+python3 scripts/income_tax.py --village 新竹市      # village-level mean/median income
+```
+
+`--county` ranks per-household income (新竹市 164萬/戶 tops 臺北 149萬 — 竹科);
+`--structure` exposes salary-vs-capital mix (臺北 股利占比 29.9% — the most capital
+income, high earners with low spend propensity); `--village` is the finest income
+geography Taiwan publishes (482 里 in 臺北). Amounts 千元, shown as 億 / 萬元/戶.
+The filing unit is a 納稅單位, not a 家庭收支 household; stats lag ~3 years; 加計股利
+新口徑 is 107年 onward. Rollup rows (合計/其他) are filtered out.
+
 ### 外銷訂單、生產、零售 (`scripts/moea_orders.py`)
 
 外銷訂單 is the best leading indicator here — orders are booked before they are
