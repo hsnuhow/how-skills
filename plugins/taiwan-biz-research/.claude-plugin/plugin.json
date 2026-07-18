@@ -1,7 +1,7 @@
 {
   "name": "taiwan-biz-research",
   "description": "Taiwan business-case research, data through recommendation. Data: the NDC business-cycle light with its components (1984-), household income/spending by county and category mix (1976-), listed-company monthly revenue, and export orders — free government open data, with the ROC-year, broken-TLS, and HTTP-200-that-isn't-data pitfalls wrapped. Method: a decision-oriented framework router that says which frameworks Taiwan's free data cannot support, and a multi-agent workflow that scopes a case into falsifiable claims, cross-checks independent sources, and adversarially refutes every claim before it ships.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": { "name": "how" },
   "license": "MIT"
 }
